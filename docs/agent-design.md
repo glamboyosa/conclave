@@ -27,5 +27,5 @@ An open-ended swarm would add agent-to-agent loops without giving this task bett
 
 - The agents reason only over the user's brief.
 - Free hosted models can be slow or rate-limited.
-- Structured output support varies by model. The default OpenRouter model is `nvidia/nemotron-3-super-120b-a12b:free` because OpenRouter currently reports structured-output support for that route.
+- Structured output support varies by model. The default OpenRouter model is `nvidia/nemotron-3-super-120b-a12b:free` because OpenRouter currently reports structured-output support for that route. The OpenRouter catalog endpoint is filtered to models that report `structured_outputs` support; catalogs for bring-your-own-key providers (Anthropic, OpenAI, Google, Kimi, DeepSeek, xAI, Groq, Mistral, NVIDIA NIM) are loaded live from each provider, and every role runs through the same Vercel AI SDK contract regardless of provider.
 - A good memo still depends on a brief with concrete stakes and constraints.

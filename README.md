@@ -2,7 +2,7 @@
 
 Conclave is a local web app that turns a decision brief into three independent positions and a decision memo.
 
-It runs without credentials using a deterministic local engine. The Settings page can connect OpenRouter, NVIDIA NIM, OpenAI, Ollama, LM Studio, or another OpenAI-compatible endpoint through Vercel AI SDK.
+The default model is NVIDIA Nemotron 3 Super on OpenRouter's free tier, covered by a shared key — nothing to configure. A model picker on the decision page switches providers (Anthropic, OpenAI, Google, Kimi, DeepSeek, xAI, Groq, Mistral, NVIDIA NIM) with live model catalogs and bring-your-own-key support through Vercel AI SDK. An offline, deterministic council runs with no credentials and no network.
 
 ## Install and run
 
@@ -29,24 +29,24 @@ Use **Export Markdown** on a memo or Library record to download the brief, indep
 
 ## Model connections
 
-Open **Settings** and select a provider:
+The **model picker** on the decision page has three parts: a provider list, a model list loaded live from that provider's catalog, and — for hosted providers — a key field.
 
-- **OpenRouter** defaults to the free `nvidia/nemotron-3-super-120b-a12b:free` route. It supports the structured output required by the council. Change the model ID to use OpenAI, Anthropic, DeepSeek, Kimi, or another model in OpenRouter's catalog.
-- **NVIDIA NIM** uses `nvidia/nemotron-3-ultra-550b-a55b` and NVIDIA's hosted development endpoint by default.
-- **OpenAI** uses `gpt-5-mini` and the OpenAI API by default.
-- **Ollama** uses `http://127.0.0.1:11434/v1` by default.
-- **LM Studio** uses `http://127.0.0.1:1234/v1` by default.
-- **OpenAI-compatible** accepts any model ID and compatible base URL.
+- **OpenRouter** is the default. The free `nvidia/nemotron-3-super-120b-a12b:free` route runs on the shared key from `.env.local`, so it works out of the box. The shared key covers `:free` models only; add your own OpenRouter key to run paid catalog models.
+- **Anthropic, OpenAI, Google, Kimi (Moonshot), DeepSeek, xAI, Groq, Mistral, NVIDIA NIM** are bring-your-own-key. Paste a key and the picker loads the provider's live model list; without a key it shows a short list of popular models.
+- **Offline** is the deterministic local council — no key, no network.
 
-Hosted providers need your API key, including models marked free. Enter it in Settings before using the connection. `.env.local` is still available for non-secret site metadata:
+**Settings** holds exactly one control: a dropdown of popular models. It never asks you to type a model ID or an endpoint.
+
+The shared OpenRouter key lives in `.env.local`:
 
 ```dotenv
+OPENROUTER_API_KEY=sk-or-...
 CONCLAVE_SITE_URL=http://localhost:4173
 ```
 
-The key lives only in React state for the current page and travels through the local middleware with each run. The app does not write it to local storage, session storage, files, or logs. Reloading clears it. Use HTTPS when deploying Conclave beyond localhost.
+Your own keys live only in React state for the current tab and travel through the local middleware with each run. The app does not write them to local storage, session storage, files, or logs. Reloading clears them. Use HTTPS when deploying Conclave beyond localhost.
 
-Ollama and LM Studio do not require a key by default. Start their OpenAI-compatible server, enter the model ID it exposes, and save the connection. Local model quality and structured-output support vary by model.
+The `/api/run` endpoint still accepts `ollama`, `lmstudio`, and `custom` OpenAI-compatible connections (loopback or HTTPS only), but the picker focuses on the hosted providers above.
 
 ## Verify
 
