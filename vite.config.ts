@@ -3,10 +3,10 @@ import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
-import { generateText, Output } from "ai";
 import { loadEnv } from "vite";
 import { defineConfig } from "vitest/config";
 import { z } from "zod";
+import { runModelCouncil } from "./src/council.js";
 import { buildDemoRun } from "./src/engine.js";
 
 const connectionSchema = z.object({
@@ -21,20 +21,14 @@ const requestSchema = z.object({
   connection: connectionSchema.optional(),
 });
 
-const runSchema = z.object({
-  title: z.string(),
-  verdict: z.string(),
-  confidence: z.number().int().min(0).max(100),
-  agents: z.array(z.object({
-    id: z.enum(["optimist", "analyst", "skeptic"]),
-    thesis: z.string(),
-    detail: z.string(),
-    signal: z.string(),
-    score: z.number().int().min(0).max(100),
-  })).length(3),
-  tensions: z.array(z.string()),
-  actions: z.array(z.string()),
-  assumptions: z.array(z.string()),
+const catalogSchema = z.object({
+  data: z.array(z.object({
+    id: z.string(),
+    name: z.string(),
+    pricing: z.object({ prompt: z.string().optional(), completion: z.string().optional() }).optional(),
+    supported_parameters: z.array(z.string()).optional(),
+    architecture: z.object({ output_modalities: z.array(z.string()).optional() }).optional(),
+  })),
 });
 
 function json(res: import("node:http").ServerResponse, status: number, body: string) {
@@ -61,9 +55,47 @@ function compatibleBaseURL(provider: string, requestedURL: string) {
 }
 
 function apiPlugin() {
+  let modelCatalog: { expiresAt: number; models: Array<{ id: string; name: string; free: boolean }> } | null = null;
+
   return {
     name: "conclave-api",
     configureServer(server: import("vite").ViteDevServer) {
+      server.middlewares.use("/api/models", async (req, res) => {
+        if (req.method !== "GET") return json(res, 405, JSON.stringify({ error: "Method not allowed." }));
+
+        try {
+          if (modelCatalog && modelCatalog.expiresAt > Date.now()) {
+            return json(res, 200, JSON.stringify({ models: modelCatalog.models }));
+          }
+
+          const response = await fetch("https://openrouter.ai/api/v1/models", {
+            signal: AbortSignal.timeout(10_000),
+          });
+
+          if (!response.ok) throw new Error("OpenRouter catalog request failed");
+
+          const catalog = catalogSchema.parse(await response.json());
+
+          const models = catalog.data
+            .filter((model) =>
+              model.architecture?.output_modalities?.includes("text") &&
+              model.supported_parameters?.includes("structured_outputs"),
+            )
+            .map((model) => ({
+              id: model.id,
+              name: model.name || model.id,
+              free: model.pricing?.prompt === "0" && model.pricing?.completion === "0",
+            }))
+            .sort((a, b) => Number(b.free) - Number(a.free) || a.name.localeCompare(b.name));
+
+          modelCatalog = { expiresAt: Date.now() + 5 * 60_000, models };
+
+          return json(res, 200, JSON.stringify({ models }));
+        } catch {
+          return json(res, 502, JSON.stringify({ error: "The OpenRouter model catalog is unavailable." }));
+        }
+      });
+
       server.middlewares.use("/api/run", async (req, res) => {
         if (req.method !== "POST") return json(res, 405, JSON.stringify({ error: "Method not allowed." }));
 
@@ -99,9 +131,12 @@ function apiPlugin() {
           }
 
           const model = connection.provider === "openrouter"
-            ? createOpenRouter({
-                apiKey: connection.apiKey || env.OPENROUTER_API_KEY,
-                compatibility: "strict",
+              ? createOpenRouter({
+                  apiKey: connection.apiKey || env.OPENROUTER_API_KEY,
+                  compatibility: "strict",
+                  extraBody: {
+                    reasoning: { effort: "low", exclude: true },
+                  },
                 headers: {
                   "HTTP-Referer": env.CONCLAVE_SITE_URL || "http://localhost:4173",
                   "X-Title": "Conclave",
@@ -114,14 +149,9 @@ function apiPlugin() {
                 supportsStructuredOutputs: true,
               }).chatModel(connection.model);
 
-          const { output } = await generateText({
-            model,
-            output: Output.object({ schema: runSchema }),
-            system: "You chair a private decision council. Write concise, specific analysis. The optimist, analyst, and skeptic must disagree productively. Use only facts in the brief. Do not imply web research. Return integer scores from 0 to 100.",
-            prompt: brief,
-          });
+          const council = await runModelCouncil(model, brief);
 
-          return json(res, 200, JSON.stringify({ ...output, mode: "live" }));
+          return json(res, 200, JSON.stringify(council));
         } catch (cause) {
           const message = cause instanceof SyntaxError
             ? "The request was not valid JSON."

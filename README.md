@@ -13,7 +13,9 @@ pnpm dev
 
 Open `http://localhost:4173`. A project-local Node 22 binary runs the scripts, so the global Node version is not changed.
 
-The install writes dependencies to `node_modules/`. The app writes the latest completed memo to the browser's `localStorage` under `conclave:lastRun`; **Start over** removes it. It stores the selected provider, model, and endpoint separately, but never stores the API key.
+The install writes dependencies to `node_modules/`. Completed decisions are saved in this browser's local storage and shown in Library. The library keeps the 50 most recent records. It stores the brief and memo, but never the API key. There is no server database, account, sync, or analytics.
+
+Browser storage is not encrypted. Anyone with access to the same browser profile can read it, and clearing site data removes it. Export records you need before clearing browser data.
 
 ## Use
 
@@ -21,11 +23,15 @@ Enter at least 20 characters describing the decision, constraints, and desired o
 
 A completed run contains opportunity, evidence, and risk positions; a chair recommendation; unresolved assumptions; and three next actions. Without an API key, the result is labeled **Local council** and uses only rules in [`src/engine.ts`](src/engine.ts). It does not claim external research.
 
+Live runs use three independent AI SDK agents in parallel, followed by a chair agent. See [Council design](docs/agent-design.md) for the role contracts, security boundary, and design sources.
+
+Use **Export Markdown** on a memo or Library record to download the brief, independent positions, chair recommendation, actions, and assumptions as one `.md` transcript.
+
 ## Model connections
 
 Open **Settings** and select a provider:
 
-- **OpenRouter** defaults to the free `nvidia/nemotron-3-ultra-550b-a55b:free` route. Change the model ID to use OpenAI, Anthropic, DeepSeek, Kimi, or another model in OpenRouter's catalog.
+- **OpenRouter** defaults to the free `nvidia/nemotron-3-super-120b-a12b:free` route. It supports the structured output required by the council. Change the model ID to use OpenAI, Anthropic, DeepSeek, Kimi, or another model in OpenRouter's catalog.
 - **NVIDIA NIM** uses `nvidia/nemotron-3-ultra-550b-a55b` and NVIDIA's hosted development endpoint by default.
 - **OpenAI** uses `gpt-5-mini` and the OpenAI API by default.
 - **Ollama** uses `http://127.0.0.1:11434/v1` by default.
@@ -53,8 +59,8 @@ Current output from the full check:
 
 ```text
 Test Files  2 passed (2)
-Tests       5 passed (5)
-14 passed
+Tests       6 passed (6)
+16 passed
 ```
 
 The command runs Oxlint with the vendored anti-slop rules, ESLint, Vitest, a production build, and Playwright against desktop Chromium and a mobile WebKit viewport.

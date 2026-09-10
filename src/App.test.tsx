@@ -26,11 +26,9 @@ describe("decision room", () => {
       .mockRejectedValue(new Error("stop"));
 
     render(<App />);
-    await userEvent.click(screen.getByRole("button", { name: "Settings" }));
-    await userEvent.selectOptions(
-      screen.getByLabelText("Provider"),
-      "openrouter",
-    );
+    await userEvent.click(screen.getAllByRole("button", { name: "Settings" })[0]);
+    await userEvent.click(screen.getByLabelText("Provider"));
+    await userEvent.click(screen.getByRole("option", { name: "OpenRouter" }));
     await userEvent.type(
       screen.getByLabelText(/API key/),
       "temporary-secret-value",

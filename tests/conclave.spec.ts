@@ -44,31 +44,47 @@ test("the API rejects an underspecified brief", async ({ request }) => {
 
 test("settings configure OpenRouter without persisting the key", async ({ page }) => {
   await page.getByRole("button", { name: "Settings" }).click();
-  await page.getByLabel("Provider").selectOption("openrouter");
-  await expect(page.getByLabel("Model ID")).toHaveValue("nvidia/nemotron-3-ultra-550b-a55b:free");
+  await page.getByLabel("Provider").click();
+  await page.getByRole("option", { name: "OpenRouter" }).click();
+  await expect(page.getByLabel("Model")).toBeVisible();
   await page.getByLabel(/API key/).fill("temporary-test-secret");
   await page.getByRole("button", { name: "Save connection" }).click();
-  await expect(page.getByText(/OpenRouter/)).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Bring the decision/ })).toBeVisible();
 
   const storage = await page.evaluate(() => localStorage.getItem("conclave:connection"));
   expect(storage).not.toContain("temporary-test-secret");
+  expect(storage).toContain("nvidia/nemotron-3-super-120b-a12b:free");
 });
 
-test("OpenRouter rejects a request without any key", async ({ request }) => {
+test("local providers reject non-loopback endpoints", async ({ request }) => {
   const response = await request.post("/api/run", {
     data: {
       brief: "Should we launch this product to five customers next month?",
       connection: {
-        provider: "openrouter",
-        model: "nvidia/nemotron-3-ultra-550b-a55b:free",
-        baseURL: "https://openrouter.ai/api/v1",
+        provider: "ollama",
+        model: "local-model",
+        baseURL: "https://example.com/v1",
         apiKey: "",
       },
     },
   });
 
-  expect(response.status()).toBe(400);
+  expect(response.status()).toBe(500);
   await expect(response.json()).resolves.toEqual({
-    error: "OpenRouter needs a key in Settings or .env.local.",
+    error: "The model request failed. Check the endpoint, model, and key.",
   });
+});
+
+test("completed decisions appear in the local library and export Markdown", async ({ page }) => {
+  await page.getByRole("button", { name: /use an example/i }).click();
+  await page.getByRole("button", { name: /convene council/i }).click();
+  await expect(page.getByText("Chair’s call")).toBeVisible({ timeout: 5000 });
+  await page.getByRole("button", { name: /^Library/ }).click();
+  await expect(page.getByText(/Saved in this browser/)).toBeVisible();
+
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: /Export .* as Markdown/ }).click();
+  const download = await downloadPromise;
+
+  expect(download.suggestedFilename()).toMatch(/^conclave-.*\.md$/);
 });

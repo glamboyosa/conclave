@@ -7,5 +7,10 @@
     "allowSyntheticDefaultImports": true,
     "noEmit": true
   },
-  "include": ["vite.config.ts", "playwright.config.ts", "src/engine.ts"]
+  "include": [
+    "vite.config.ts",
+    "playwright.config.ts",
+    "src/engine.ts",
+    "src/council.ts"
+  ]
 }

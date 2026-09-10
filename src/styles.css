@@ -55,42 +55,106 @@ select {
   max-width: 680px;
   margin: 0 auto;
 }
+.library-view {
+  max-width: 760px;
+  margin: 0 auto;
+}
+.library-view h1 {
+  font-size: clamp(42px, 5vw, 62px);
+}
+.library-list {
+  display: grid;
+  gap: 10px;
+}
+.library-list article {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: var(--paper);
+}
+.library-list article > button:first-child {
+  min-width: 0;
+  padding: 10px 12px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+}
+.library-list article span {
+  font: 10px DM Mono;
+  color: var(--muted);
+}
+.library-list article strong {
+  display: block;
+  margin-top: 5px;
+  font-size: 14px;
+}
+.library-list article p {
+  margin: 4px 0 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.empty-library {
+  display: grid;
+  min-height: 220px;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  border: 1px dashed rgba(27, 32, 28, 0.18);
+  border-radius: 14px;
+  color: var(--muted);
+  text-align: center;
+}
+.empty-library p {
+  margin: 0;
+  font-size: 12px;
+}
+.export-current {
+  margin-left: 8px;
+}
 .settings-view h1 {
   font-size: clamp(42px, 5vw, 62px);
 }
-.settings-form {
-  display: grid;
-  gap: 20px;
-  padding: 26px;
-  border: 1px solid var(--border);
-  border-radius: 16px;
+.settings-card {
+  --card-spacing: 24px;
   background: var(--paper);
-  box-shadow: 0 12px 36px rgba(31, 40, 34, 0.07);
+  box-shadow: 0 1px 2px rgba(31, 40, 34, 0.04), 0 14px 40px rgba(31, 40, 34, 0.06);
 }
-.settings-form label {
-  display: grid;
-  gap: 8px;
+.settings-card [data-slot="card-header"] {
+  position: relative;
+  padding-right: 170px;
 }
-.settings-form label > span {
-  font-size: 12px;
-  font-weight: 700;
+.settings-card [data-slot="badge"] {
+  position: absolute;
+  top: 0;
+  right: 24px;
 }
-.settings-form input,
-.settings-form select {
+.settings-control {
   width: 100%;
-  min-height: 46px;
-  border: 1px solid rgba(27, 32, 28, 0.16);
-  border-radius: 9px;
+  min-height: 44px;
   background: white;
-  color: var(--ink);
-  padding: 0 12px;
   font-size: 16px;
-  outline: none;
 }
-.settings-form input:focus,
-.settings-form select:focus {
-  border-color: var(--green);
-  box-shadow: 0 0 0 3px rgba(36, 91, 69, 0.12);
+.model-input-wrap {
+  position: relative;
+}
+.model-spinner {
+  position: absolute;
+  top: 14px;
+  right: 13px;
+  width: 16px;
+  height: 16px;
+  color: var(--muted);
+  animation: spin 900ms linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 .secret-input {
   position: relative;
@@ -98,23 +162,15 @@ select {
 .secret-input svg {
   position: absolute;
   left: 13px;
-  top: 15px;
+  top: 14px;
+  width: 16px;
+  height: 16px;
   color: var(--muted);
 }
 .secret-input input {
   padding-left: 39px;
 }
-.provider-note {
-  margin: 0;
-  padding: 13px 15px;
-  border-left: 2px solid #9aaa43;
-  background: #f3f4e8;
-  color: #596058;
-  font-size: 12px;
-  line-height: 1.55;
-}
 .settings-actions {
-  display: flex;
   justify-content: flex-end;
 }
 button {
@@ -270,6 +326,9 @@ header {
   transform: scale(0.96);
 }
 .mobile-brand {
+  display: none;
+}
+.mobile-nav {
   display: none;
 }
 .workspace {
@@ -839,7 +898,37 @@ details ul {
     display: none;
   }
   .workspace {
-    padding: 52px 20px;
+    padding: 52px 20px 92px;
+  }
+  .mobile-nav {
+    position: fixed;
+    z-index: 20;
+    right: 12px;
+    bottom: 12px;
+    left: 12px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    padding: 5px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 13px;
+    background: #1d2520;
+    box-shadow: 0 12px 35px rgba(18, 25, 20, 0.22);
+  }
+  .mobile-nav button {
+    min-height: 44px;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: #aeb5ad;
+    font-size: 11px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+  .mobile-nav button.active {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
   }
   .composer-view {
     max-width: 100%;
@@ -866,6 +955,17 @@ details ul {
   }
   .workspace {
     padding-top: 40px;
+  }
+  .settings-card {
+    --card-spacing: 18px;
+  }
+  .settings-card [data-slot="card-header"] {
+    padding-right: 18px;
+  }
+  .settings-card [data-slot="badge"] {
+    position: static;
+    width: fit-content;
+    margin-top: 8px;
   }
   .composer-footer {
     padding-left: 8px;
@@ -898,6 +998,12 @@ details ul {
   }
   .verdict p {
     font-size: 21px;
+  }
+  .library-list article {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .library-list article > button:last-child {
+    justify-self: start;
   }
 }
 @media (prefers-reduced-motion: reduce) {

@@ -1,13 +1,16 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
+import { z } from "zod";
 import {
   ArrowUp,
   Check,
   ChevronRight,
   CircleAlert,
   Command,
+  Download,
   FileText,
   KeyRound,
+  LoaderCircle,
   Plus,
   RotateCcw,
   Settings,
@@ -16,13 +19,46 @@ import {
 } from "lucide-react";
 import type { AgentFinding, AgentId, RunResult } from "./engine";
 import { Button } from "./components/ui/button";
+import { Input } from "./components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./components/ui/select";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "./components/ui/card";
+import { Badge } from "./components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "./components/ui/alert";
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "./components/ui/field";
 import {
   defaultConnection,
+  needsEndpoint,
   needsApiKey,
   providerPresets,
   type ModelConnection,
   type ProviderId,
 } from "./providers";
+import {
+  decisionMarkdown,
+  loadDecisionLibrary,
+  saveDecision,
+  type DecisionRecord,
+} from "./storage";
 
 const sample =
   "We are a 12-person design studio considering turning our internal client-feedback workflow into a paid product. We can spend six weeks on a pilot, but it cannot distract from client delivery. Should we build it, and what would make the bet responsible?";
@@ -49,12 +85,12 @@ const council: Array<{
 
 type Phase = "idle" | "running" | "done" | "error";
 
-type SavedRun = { phase: Phase; result: RunResult | null };
+type SavedRun = { phase: Phase; brief: string; result: RunResult | null };
 
-type View = "decision" | "settings";
+type View = "decision" | "library" | "settings";
 
 const providerNames: Record<ProviderId, string> = {
-  demo: "Built-in demo",
+  demo: "Offline",
   openrouter: "OpenRouter",
   nvidia: "NVIDIA NIM",
   openai: "OpenAI",
@@ -62,6 +98,12 @@ const providerNames: Record<ProviderId, string> = {
   lmstudio: "LM Studio",
   custom: "OpenAI-compatible",
 };
+
+type CatalogModel = { id: string; name: string; free: boolean };
+
+const modelCatalogSchema = z.object({
+  models: z.array(z.object({ id: z.string(), name: z.string(), free: z.boolean() })),
+});
 
 function parseProvider(value: string): ProviderId {
   switch (value) {
@@ -80,16 +122,20 @@ function parseProvider(value: string): ProviderId {
 function loadSavedRun(): SavedRun {
   const saved = localStorage.getItem("conclave:lastRun");
 
-  if (!saved) return { phase: "idle", result: null };
+  if (!saved) return { phase: "idle", brief: "", result: null };
 
   try {
-    const result: RunResult = JSON.parse(saved);
+    const parsed: RunResult | { brief: string; result: RunResult } = JSON.parse(saved);
 
-    return { phase: "done", result };
+    if ("result" in parsed) {
+      return { phase: "done", brief: parsed.brief, result: parsed.result };
+    }
+
+    return { phase: "done", brief: "", result: parsed };
   } catch {
     localStorage.removeItem("conclave:lastRun");
 
-    return { phase: "idle", result: null };
+    return { phase: "idle", brief: "", result: null };
   }
 }
 
@@ -135,11 +181,14 @@ function AgentCard({
 
 export default function App() {
   const [initial] = useState(loadSavedRun);
-  const [brief, setBrief] = useState("");
+  const [brief, setBrief] = useState(initial.brief);
   const [phase, setPhase] = useState<Phase>(initial.phase);
   const [result, setResult] = useState<RunResult | null>(initial.result);
   const [error, setError] = useState("");
   const [view, setView] = useState<View>("decision");
+  const [library, setLibrary] = useState<DecisionRecord[]>(loadDecisionLibrary);
+  const [models, setModels] = useState<CatalogModel[]>([]);
+  const [modelStatus, setModelStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
 
   const [connection, setConnection] = useState<ModelConnection>(() => {
     const saved = localStorage.getItem("conclave:connection");
@@ -154,6 +203,29 @@ export default function App() {
   });
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (connection.provider !== "openrouter" || models.length) return;
+
+    const controller = new AbortController();
+    setModelStatus("loading");
+    fetch("/api/models?provider=openrouter", { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Catalog unavailable");
+
+        return modelCatalogSchema.parse(await response.json());
+      })
+      .then(({ models: nextModels }) => {
+        setModels(nextModels);
+        setModelStatus("ready");
+      })
+      .catch((cause: unknown) => {
+        if (cause instanceof DOMException && cause.name === "AbortError") return;
+        setModelStatus("error");
+      });
+
+    return () => controller.abort();
+  }, [connection.provider, models.length]);
 
   async function runCouncil() {
     if (brief.trim().length < 20) {
@@ -183,7 +255,13 @@ export default function App() {
       await new Promise((resolve) => setTimeout(resolve, 950));
       setResult(data);
       setPhase("done");
-      localStorage.setItem("conclave:lastRun", JSON.stringify(data));
+      localStorage.setItem(
+        "conclave:lastRun",
+        JSON.stringify({ brief: brief.trim(), result: data }),
+      );
+      const record = saveDecision(brief.trim(), data);
+
+      setLibrary((records) => [record, ...records].slice(0, 50));
     } catch (cause) {
       setError(
         cause instanceof Error
@@ -192,6 +270,24 @@ export default function App() {
       );
       setPhase("error");
     }
+  }
+
+  function openRecord(record: DecisionRecord) {
+    setBrief(record.brief);
+    setResult(record.result);
+    setPhase("done");
+    setView("decision");
+  }
+
+  function exportRecord(record: DecisionRecord) {
+    const blob = new Blob([decisionMarkdown(record)], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = `conclave-${record.createdAt.slice(0, 10)}.md`;
+    link.click();
+    URL.revokeObjectURL(url);
   }
 
   function chooseProvider(provider: ProviderId) {
@@ -207,7 +303,7 @@ export default function App() {
       return;
     }
 
-    if (connection.provider !== "demo" && !connection.baseURL.trim()) {
+    if (needsEndpoint(connection.provider) && !connection.baseURL.trim()) {
       setError("Enter an OpenAI-compatible API endpoint.");
 
       return;
@@ -268,9 +364,12 @@ export default function App() {
             <Settings size={16} />
             Settings
           </button>
-          <button className="nav-item" disabled>
+          <button
+            className={`nav-item ${view === "library" ? "active" : ""}`}
+            onClick={() => setView("library")}
+          >
             <FileText size={16} />
-            Library<span>Soon</span>
+            Library<span>{library.length}</span>
           </button>
         </nav>
         <div className="sidebar-bottom">
@@ -305,54 +404,146 @@ export default function App() {
             <RotateCcw size={17} />
           </button>
         </header>
+        <nav className="mobile-nav" aria-label="Mobile navigation">
+          <button
+            className={view === "decision" ? "active" : ""}
+            onClick={() => setView("decision")}
+          >
+            <Sparkles size={16} /> Decision
+          </button>
+          <button
+            className={view === "library" ? "active" : ""}
+            onClick={() => setView("library")}
+          >
+            <FileText size={16} /> Library
+          </button>
+          <button
+            className={view === "settings" ? "active" : ""}
+            onClick={() => setView("settings")}
+          >
+            <Settings size={16} /> Settings
+          </button>
+        </nav>
         <div className="workspace">
-          {view === "settings" ? (
+          {view === "library" ? (
+            <section className="library-view">
+              <div className="eyebrow">
+                <span>Local only</span> Decision library
+              </div>
+              <h1>Your decision record.</h1>
+              <p className="lede">
+                Saved in this browser. Conclave has no account, server database,
+                or cloud sync. Export Markdown when another agent needs the full
+                context.
+              </p>
+              {library.length ? (
+                <div className="library-list">
+                  {library.map((record) => (
+                    <article key={record.id}>
+                      <button onClick={() => openRecord(record)}>
+                        <span>{new Date(record.createdAt).toLocaleDateString()}</span>
+                        <strong>{record.result.title}</strong>
+                        <p>{record.brief}</p>
+                      </button>
+                      <Button
+                        variant="ghost"
+                        aria-label={`Export ${record.result.title} as Markdown`}
+                        onClick={() => exportRecord(record)}
+                      >
+                        <Download data-icon="inline-start" /> Markdown
+                      </Button>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <div className="empty-library">
+                  <FileText size={22} />
+                  <strong>No saved decisions</strong>
+                  <p>Completed councils will appear here on this device.</p>
+                </div>
+              )}
+            </section>
+          ) : view === "settings" ? (
             <section className="settings-view">
               <div className="eyebrow">
                 <span>Settings</span> Model connection
               </div>
               <h1>Choose who powers the council.</h1>
               <p className="lede">
-                Use the offline demo, a hosted model, or a local server. Your
-                key stays in this tab and is never written to local storage.
+                Use the offline council, a hosted model, or a local server.
+                Provider keys live in memory and disappear when you close this tab.
               </p>
-              <form className="settings-form" onSubmit={saveConnection}>
-                <label>
-                  <span>Provider</span>
-                  <select
-                    value={connection.provider}
-                    onChange={(event) => {
-                      const provider = parseProvider(event.target.value);
-
-                      chooseProvider(provider);
-                    }}
-                  >
-                    {Object.entries(providerNames).map(([id, name]) => (
-                      <option value={id} key={id}>
-                        {name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+              <Card className="settings-card">
+                <CardHeader>
+                  <CardTitle>Model connection</CardTitle>
+                  <CardDescription>
+                    Choose a provider, then select the model used by every council member.
+                  </CardDescription>
+                  <Badge variant="secondary">Saved locally · key excluded</Badge>
+                </CardHeader>
+                <form onSubmit={saveConnection}>
+                  <CardContent>
+                    <FieldGroup>
+                    <Field>
+                      <FieldLabel htmlFor="provider">Provider</FieldLabel>
+                      <Select
+                        value={connection.provider}
+                        onValueChange={(value) => chooseProvider(parseProvider(value ?? ""))}
+                      >
+                        <SelectTrigger id="provider" className="settings-control" aria-label="Provider">
+                          <SelectValue>{providerNames[connection.provider]}</SelectValue>
+                        </SelectTrigger>
+                        <SelectContent align="start">
+                          <SelectGroup>
+                            {Object.entries(providerNames).map(([id, name]) => (
+                              <SelectItem value={id} key={id}>{name}</SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                      <FieldDescription>
+                        OpenRouter provides one catalog for Anthropic, OpenAI, DeepSeek, Kimi, NVIDIA, and more.
+                      </FieldDescription>
+                    </Field>
                 {connection.provider !== "demo" && (
                   <>
-                    <label>
-                      <span>Model ID</span>
-                      <input
-                        value={connection.model}
-                        onChange={(event) =>
-                          setConnection({
-                            ...connection,
-                            model: event.target.value,
-                          })
-                        }
-                        placeholder="provider/model-name"
-                      />
-                    </label>
-                    <label>
-                      <span>API endpoint</span>
-                      <input
+                    <Field>
+                      <FieldLabel htmlFor="model">Model</FieldLabel>
+                      {connection.provider === "openrouter" && models.length ? (
+                        <Select value={connection.model} onValueChange={(model) => setConnection({ ...connection, model: model ?? "" })}>
+                          <SelectTrigger id="model" className="settings-control" aria-label="Model">
+                            <SelectValue>
+                              {models.find((model) => model.id === connection.model)?.name ?? connection.model}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent align="start">
+                            <SelectGroup>
+                              {models.map((model) => (
+                                <SelectItem value={model.id} key={model.id}>
+                                  {model.name}{model.free ? " · Free" : ""}
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <div className="model-input-wrap">
+                          <Input id="model" className="settings-control" value={connection.model} onChange={(event) => setConnection({ ...connection, model: event.target.value })} placeholder="provider/model-name" />
+                          {modelStatus === "loading" && <LoaderCircle aria-hidden="true" className="model-spinner" />}
+                        </div>
+                      )}
+                      <FieldDescription>
+                        {modelStatus === "error" && connection.provider === "openrouter"
+                          ? "The catalog is unavailable. You can still enter an OpenRouter model ID."
+                          : "Only models that support the council's structured response format are listed."}
+                      </FieldDescription>
+                    </Field>
+                    {needsEndpoint(connection.provider) && <Field>
+                      <FieldLabel htmlFor="endpoint">API endpoint</FieldLabel>
+                      <Input
+                        id="endpoint"
                         type="url"
+                        className="settings-control"
                         value={connection.baseURL}
                         onChange={(event) =>
                           setConnection({
@@ -363,14 +554,13 @@ export default function App() {
                         inputMode="url"
                         placeholder="https://api.example.com/v1"
                       />
-                    </label>
-                    <label>
-                      <span>
-                        API key {needsApiKey(connection.provider) ? "" : "(optional)"}
-                      </span>
+                    </Field>}
+                    <Field>
+                      <FieldLabel htmlFor="api-key">API key {needsApiKey(connection.provider) ? "" : "(optional)"}</FieldLabel>
                       <div className="secret-input">
-                        <KeyRound size={16} />
-                        <input
+                        <KeyRound aria-hidden="true" />
+                        <Input
+                          id="api-key"
                           type="password"
                           value={connection.apiKey}
                           onChange={(event) =>
@@ -386,33 +576,34 @@ export default function App() {
                           placeholder="Held for this tab only"
                         />
                       </div>
-                    </label>
+                      <FieldDescription>
+                        Never saved to browser storage. A server-side OpenRouter key can be set in <code>.env.local</code> instead.
+                      </FieldDescription>
+                    </Field>
                   </>
                 )}
-                {connection.provider === "nvidia" && (
-                  <p className="provider-note">
-                    Nemotron 3 Ultra is preselected. NVIDIA currently offers a
-                    free development endpoint; usage limits are set by NVIDIA.
-                  </p>
-                )}
                 {connection.provider === "openrouter" && (
-                  <p className="provider-note">
-                    Free Nemotron 3 Ultra is preselected. Use any OpenRouter
-                    model ID here for OpenAI, Anthropic, DeepSeek, Kimi, and
-                    other models. A key in .env.local also works.
-                  </p>
+                  <Alert>
+                    <ShieldCheck aria-hidden="true" />
+                    <AlertTitle>Private key handling</AlertTitle>
+                    <AlertDescription>Nemotron 3 Super is the free default. Requests go directly through the local Conclave server to OpenRouter.</AlertDescription>
+                  </Alert>
                 )}
                 {connection.provider === "demo" && (
-                  <p className="provider-note">
-                    The deterministic demo makes no network request and needs no
-                    account.
-                  </p>
+                  <Alert>
+                    <ShieldCheck aria-hidden="true" />
+                    <AlertTitle>No network requests</AlertTitle>
+                    <AlertDescription>The offline council is deterministic and needs no account or API key.</AlertDescription>
+                  </Alert>
                 )}
-                {error && <div className="error" role="alert">{error}</div>}
-                <div className="settings-actions">
-                  <Button type="submit">Save connection</Button>
-                </div>
-              </form>
+                {error && <FieldError>{error}</FieldError>}
+                    </FieldGroup>
+                  </CardContent>
+                  <CardFooter className="settings-actions">
+                    <Button type="submit">Save connection</Button>
+                  </CardFooter>
+                </form>
+              </Card>
             </section>
           ) : phase === "idle" || phase === "error" ? (
             <section className="composer-view">
@@ -577,6 +768,21 @@ export default function App() {
               <Button className="another" variant="ghost" onClick={reset}>
                 <Plus data-icon="inline-start" />
                 Bring another decision
+              </Button>
+              <Button
+                className="export-current"
+                variant="ghost"
+                onClick={() =>
+                  exportRecord({
+                    id: new Date().toISOString(),
+                    createdAt: new Date().toISOString(),
+                    brief,
+                    result,
+                  })
+                }
+              >
+                <Download data-icon="inline-start" />
+                Export Markdown
               </Button>
             </section>
           )}
