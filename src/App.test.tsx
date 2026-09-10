@@ -6,6 +6,7 @@ import App from "./App";
 beforeEach(() => {
   cleanup();
   localStorage.clear();
+  sessionStorage.clear();
   vi.restoreAllMocks();
 });
 
@@ -18,6 +19,16 @@ describe("decision room", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(
       "at least 20 characters",
     );
+  });
+  it("keeps API keys out of local storage", async () => {
+    render(<App />);
+    await userEvent.click(screen.getByRole("button", { name: "Settings" }));
+    await userEvent.selectOptions(screen.getByLabelText("Provider"), "nvidia");
+    await userEvent.type(screen.getByLabelText("API key"), "nvapi-secret-value");
+    await userEvent.click(screen.getByRole("button", { name: "Save connection" }));
+
+    expect(localStorage.getItem("conclave:connection")).not.toContain("nvapi-secret-value");
+    expect(screen.getByText(/NVIDIA NIM/)).toBeInTheDocument();
   });
   it("runs the council and renders the memo", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(

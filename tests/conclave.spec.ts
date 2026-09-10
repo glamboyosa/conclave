@@ -41,3 +41,15 @@ test("the API rejects an underspecified brief", async ({ request }) => {
     error: "Brief must be 20–4,000 characters.",
   });
 });
+
+test("settings configure NVIDIA without persisting the key", async ({ page }) => {
+  await page.getByRole("button", { name: "Settings" }).click();
+  await page.getByLabel("Provider").selectOption("nvidia");
+  await expect(page.getByLabel("Model ID")).toHaveValue("nvidia/nemotron-3-ultra-550b-a55b");
+  await page.getByLabel("API key").fill("nvapi-test-secret");
+  await page.getByRole("button", { name: "Save connection" }).click();
+  await expect(page.getByText(/NVIDIA NIM/)).toBeVisible();
+
+  const storage = await page.evaluate(() => localStorage.getItem("conclave:connection"));
+  expect(storage).not.toContain("nvapi-test-secret");
+});

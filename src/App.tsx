@@ -7,13 +7,22 @@ import {
   CircleAlert,
   Command,
   FileText,
+  KeyRound,
   Plus,
   RotateCcw,
+  Settings,
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
 import type { AgentFinding, AgentId, RunResult } from "./engine";
 import { Button } from "./components/ui/button";
+import {
+  defaultConnection,
+  needsApiKey,
+  providerPresets,
+  type ModelConnection,
+  type ProviderId,
+} from "./providers";
 
 const sample =
   "We are a 12-person design studio considering turning our internal client-feedback workflow into a paid product. We can spend six weeks on a pilot, but it cannot distract from client delivery. Should we build it, and what would make the bet responsible?";
@@ -41,6 +50,30 @@ const council: Array<{
 type Phase = "idle" | "running" | "done" | "error";
 
 type SavedRun = { phase: Phase; result: RunResult | null };
+
+type View = "decision" | "settings";
+
+const providerNames: Record<ProviderId, string> = {
+  demo: "Built-in demo",
+  nvidia: "NVIDIA NIM",
+  openai: "OpenAI",
+  ollama: "Ollama",
+  lmstudio: "LM Studio",
+  custom: "OpenAI-compatible",
+};
+
+function parseProvider(value: string): ProviderId {
+  switch (value) {
+    case "nvidia":
+    case "openai":
+    case "ollama":
+    case "lmstudio":
+    case "custom":
+      return value;
+    default:
+      return "demo";
+  }
+}
 
 function loadSavedRun(): SavedRun {
   const saved = localStorage.getItem("conclave:lastRun");
@@ -104,6 +137,20 @@ export default function App() {
   const [phase, setPhase] = useState<Phase>(initial.phase);
   const [result, setResult] = useState<RunResult | null>(initial.result);
   const [error, setError] = useState("");
+  const [view, setView] = useState<View>("decision");
+
+  const [connection, setConnection] = useState<ModelConnection>(() => {
+    const saved = localStorage.getItem("conclave:connection");
+
+    if (!saved) return defaultConnection;
+
+    try {
+      return { ...defaultConnection, ...JSON.parse(saved), apiKey: "" };
+    } catch {
+      return defaultConnection;
+    }
+  });
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   async function runCouncil() {
@@ -122,7 +169,7 @@ export default function App() {
       const response = await fetch("/api/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ brief: brief.trim() }),
+        body: JSON.stringify({ brief: brief.trim(), connection }),
       });
 
       const data: RunResult & { error?: string } = await response.json();
@@ -143,6 +190,42 @@ export default function App() {
       );
       setPhase("error");
     }
+  }
+
+  function chooseProvider(provider: ProviderId) {
+    setConnection({ ...providerPresets[provider], apiKey: "" });
+  }
+
+  function saveConnection(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (connection.provider !== "demo" && !connection.model.trim()) {
+      setError("Enter the model ID exposed by this provider.");
+
+      return;
+    }
+
+    if (connection.provider !== "demo" && !connection.baseURL.trim()) {
+      setError("Enter an OpenAI-compatible API endpoint.");
+
+      return;
+    }
+
+    if (needsApiKey(connection.provider) && !connection.apiKey.trim()) {
+      setError("Enter an API key for this provider.");
+
+      return;
+    }
+
+    const safeConnection = {
+      provider: connection.provider,
+      model: connection.model,
+      baseURL: connection.baseURL,
+    };
+
+    localStorage.setItem("conclave:connection", JSON.stringify(safeConnection));
+    setError("");
+    setView("decision");
   }
 
   function reset() {
@@ -166,9 +249,22 @@ export default function App() {
           <span>Conclave</span>
         </div>
         <nav aria-label="Primary">
-          <button className="nav-item active">
+          <button
+            className={`nav-item ${view === "decision" ? "active" : ""}`}
+            onClick={() => setView("decision")}
+          >
             <Sparkles size={16} />
             Decision room
+          </button>
+          <button
+            className={`nav-item ${view === "settings" ? "active" : ""}`}
+            onClick={() => {
+              setError("");
+              setView("settings");
+            }}
+          >
+            <Settings size={16} />
+            Settings
           </button>
           <button className="nav-item" disabled>
             <FileText size={16} />
@@ -197,7 +293,7 @@ export default function App() {
           </div>
           <div className="status">
             <span className="status-dot" />
-            Council online · 3 agents
+            {providerNames[connection.provider]} · 3 agents
           </div>
           <button
             className="reset-icon"
@@ -208,7 +304,105 @@ export default function App() {
           </button>
         </header>
         <div className="workspace">
-          {phase === "idle" || phase === "error" ? (
+          {view === "settings" ? (
+            <section className="settings-view">
+              <div className="eyebrow">
+                <span>Settings</span> Model connection
+              </div>
+              <h1>Choose who powers the council.</h1>
+              <p className="lede">
+                Use the offline demo, a hosted model, or a local server. Your
+                key stays in this tab and is never written to local storage.
+              </p>
+              <form className="settings-form" onSubmit={saveConnection}>
+                <label>
+                  <span>Provider</span>
+                  <select
+                    value={connection.provider}
+                    onChange={(event) => {
+                      const provider = parseProvider(event.target.value);
+
+                      chooseProvider(provider);
+                    }}
+                  >
+                    {Object.entries(providerNames).map(([id, name]) => (
+                      <option value={id} key={id}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {connection.provider !== "demo" && (
+                  <>
+                    <label>
+                      <span>Model ID</span>
+                      <input
+                        value={connection.model}
+                        onChange={(event) =>
+                          setConnection({
+                            ...connection,
+                            model: event.target.value,
+                          })
+                        }
+                        placeholder="provider/model-name"
+                      />
+                    </label>
+                    <label>
+                      <span>API endpoint</span>
+                      <input
+                        value={connection.baseURL}
+                        onChange={(event) =>
+                          setConnection({
+                            ...connection,
+                            baseURL: event.target.value,
+                          })
+                        }
+                        inputMode="url"
+                        placeholder="https://api.example.com/v1"
+                      />
+                    </label>
+                    <label>
+                      <span>
+                        API key {needsApiKey(connection.provider) ? "" : "(optional)"}
+                      </span>
+                      <div className="secret-input">
+                        <KeyRound size={16} />
+                        <input
+                          type="password"
+                          value={connection.apiKey}
+                          onChange={(event) =>
+                            setConnection({
+                              ...connection,
+                              apiKey: event.target.value,
+                            })
+                          }
+                          autoComplete="off"
+                          spellCheck={false}
+                          placeholder="Held for this tab only"
+                        />
+                      </div>
+                    </label>
+                  </>
+                )}
+                {connection.provider === "nvidia" && (
+                  <p className="provider-note">
+                    Nemotron 3 Ultra is preselected. NVIDIA currently offers a
+                    free development endpoint; usage limits are set by NVIDIA.
+                  </p>
+                )}
+                {connection.provider === "demo" && (
+                  <p className="provider-note">
+                    The deterministic demo makes no network request and needs no
+                    account.
+                  </p>
+                )}
+                {error && <div className="error" role="alert">{error}</div>}
+                <div className="settings-actions">
+                  <Button type="submit">Save connection</Button>
+                </div>
+              </form>
+            </section>
+          ) : phase === "idle" || phase === "error" ? (
             <section className="composer-view">
               <div className="eyebrow">
                 <span>01</span> Frame the decision

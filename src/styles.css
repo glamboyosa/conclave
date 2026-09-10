@@ -46,8 +46,76 @@ body {
   min-height: 100vh;
 }
 button,
-textarea {
+textarea,
+input,
+select {
   font: inherit;
+}
+.settings-view {
+  max-width: 680px;
+  margin: 0 auto;
+}
+.settings-view h1 {
+  font-size: clamp(42px, 5vw, 62px);
+}
+.settings-form {
+  display: grid;
+  gap: 20px;
+  padding: 26px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--paper);
+  box-shadow: 0 12px 36px rgba(31, 40, 34, 0.07);
+}
+.settings-form label {
+  display: grid;
+  gap: 8px;
+}
+.settings-form label > span {
+  font-size: 12px;
+  font-weight: 700;
+}
+.settings-form input,
+.settings-form select {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid rgba(27, 32, 28, 0.16);
+  border-radius: 9px;
+  background: white;
+  color: var(--ink);
+  padding: 0 12px;
+  font-size: 16px;
+  outline: none;
+}
+.settings-form input:focus,
+.settings-form select:focus {
+  border-color: var(--green);
+  box-shadow: 0 0 0 3px rgba(36, 91, 69, 0.12);
+}
+.secret-input {
+  position: relative;
+}
+.secret-input svg {
+  position: absolute;
+  left: 13px;
+  top: 15px;
+  color: var(--muted);
+}
+.secret-input input {
+  padding-left: 39px;
+}
+.provider-note {
+  margin: 0;
+  padding: 13px 15px;
+  border-left: 2px solid #9aaa43;
+  background: #f3f4e8;
+  color: #596058;
+  font-size: 12px;
+  line-height: 1.55;
+}
+.settings-actions {
+  display: flex;
+  justify-content: flex-end;
 }
 button {
   cursor: pointer;

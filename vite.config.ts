@@ -1,142 +1,103 @@
-import { loadEnv, type Plugin } from "vite";
-import { defineConfig } from "vitest/config";
+import path from "node:path";
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
-import { buildDemoRun, type RunResult } from "./src/engine.js";
-import path from "node:path";
+import { generateText, Output } from "ai";
+import { defineConfig } from "vitest/config";
+import { z } from "zod";
+import { buildDemoRun } from "./src/engine.js";
 
-const schema = {
-  type: "object",
-  additionalProperties: false,
-  properties: {
-    title: { type: "string" },
-    verdict: { type: "string" },
-    confidence: { type: "number" },
-    agents: {
-      type: "array",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        properties: {
-          id: { type: "string", enum: ["optimist", "analyst", "skeptic"] },
-          thesis: { type: "string" },
-          detail: { type: "string" },
-          signal: { type: "string" },
-          score: { type: "number" },
-        },
-        required: ["id", "thesis", "detail", "signal", "score"],
-      },
-    },
-    tensions: { type: "array", items: { type: "string" } },
-    actions: { type: "array", items: { type: "string" } },
-    assumptions: { type: "array", items: { type: "string" } },
-  },
-  required: [
-    "title",
-    "verdict",
-    "confidence",
-    "agents",
-    "tensions",
-    "actions",
-    "assumptions",
-  ],
-};
+const connectionSchema = z.object({
+  provider: z.enum(["demo", "nvidia", "openai", "ollama", "lmstudio", "custom"]),
+  model: z.string().max(200),
+  baseURL: z.string().max(500),
+  apiKey: z.string().max(1000),
+});
 
-function apiPlugin(): Plugin {
+const requestSchema = z.object({
+  brief: z.string().trim().min(20).max(4000),
+  connection: connectionSchema.optional(),
+});
+
+const runSchema = z.object({
+  title: z.string(),
+  verdict: z.string(),
+  confidence: z.number().int().min(0).max(100),
+  agents: z.array(z.object({
+    id: z.enum(["optimist", "analyst", "skeptic"]),
+    thesis: z.string(),
+    detail: z.string(),
+    signal: z.string(),
+    score: z.number().int().min(0).max(100),
+  })).length(3),
+  tensions: z.array(z.string()),
+  actions: z.array(z.string()),
+  assumptions: z.array(z.string()),
+});
+
+function json(res: import("node:http").ServerResponse, status: number, body: string) {
+  res.statusCode = status;
+  res.setHeader("Content-Type", "application/json");
+  res.end(body);
+}
+
+function apiPlugin() {
   return {
     name: "conclave-api",
-    configureServer(server) {
+    configureServer(server: import("vite").ViteDevServer) {
       server.middlewares.use("/api/run", async (req, res) => {
-        if (req.method !== "POST") {
-          res.statusCode = 405;
-
-          return res.end("Method not allowed");
-        }
+        if (req.method !== "POST") return json(res, 405, JSON.stringify({ error: "Method not allowed." }));
 
         let body = "";
         req.on("data", (chunk) => (body += chunk));
         await new Promise((resolve) => req.on("end", resolve));
 
         try {
-          const parsed: { brief?: string } = JSON.parse(body);
-          const brief = parsed.brief;
+          const parsed = requestSchema.safeParse(JSON.parse(body));
 
-          if (!brief || brief.trim().length < 20 || brief.length > 4000) {
-            res.statusCode = 400;
-            res.setHeader("Content-Type", "application/json");
-
-            return res.end(
-              JSON.stringify({ error: "Brief must be 20–4,000 characters." }),
-            );
+          if (!parsed.success) {
+            return json(res, 400, JSON.stringify({ error: "Brief must be 20–4,000 characters." }));
           }
 
-          const env = loadEnv("development", process.cwd(), "");
+          const { brief, connection } = parsed.data;
 
-          if (!env.OPENAI_API_KEY) {
-            const demo: RunResult = buildDemoRun(brief);
-            res.setHeader("Content-Type", "application/json");
-
-            return res.end(JSON.stringify({ ...demo, mode: "local" }));
+          if (!connection || connection.provider === "demo") {
+            return json(res, 200, JSON.stringify({ ...buildDemoRun(brief), mode: "local" }));
           }
 
-          const response = await fetch("https://api.openai.com/v1/responses", {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${env.OPENAI_API_KEY}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              model: env.OPENAI_MODEL || "gpt-5-mini",
-              store: false,
-              instructions:
-                "You are the chair of a private decision council. Return concise, specific analysis. Three agents must disagree productively. Scores and confidence are integers 0-100. Never claim web research or facts not supplied.",
-              input: brief,
-              text: {
-                format: {
-                  type: "json_schema",
-                  name: "decision_council",
-                  strict: true,
-                  schema,
-                },
-              },
-            }),
+          if (!connection.model || !connection.baseURL) {
+            return json(res, 400, JSON.stringify({ error: "Model and API endpoint are required." }));
+          }
+
+          if ((connection.provider === "openai" || connection.provider === "nvidia") && !connection.apiKey) {
+            return json(res, 400, JSON.stringify({ error: "This provider requires an API key." }));
+          }
+
+          const provider = createOpenAICompatible({
+            name: connection.provider,
+            baseURL: connection.baseURL.replace(/\/$/, ""),
+            apiKey: connection.apiKey || undefined,
+            supportsStructuredOutputs: true,
           });
 
-          if (!response.ok)
-            throw new Error(`OpenAI request failed (${response.status})`);
+          const { output } = await generateText({
+            model: provider.chatModel(connection.model),
+            output: Output.object({ schema: runSchema }),
+            system: "You chair a private decision council. Write concise, specific analysis. The optimist, analyst, and skeptic must disagree productively. Use only facts in the brief. Do not imply web research. Return integer scores from 0 to 100.",
+            prompt: brief,
+          });
 
-          const payload: {
-            output_text?: string;
-            output?: Array<{
-              content?: Array<{ type?: string; text?: string }>;
-            }>;
-          } = await response.json();
+          return json(res, 200, JSON.stringify({ ...output, mode: "live" }));
+        } catch (cause) {
+          const message = cause instanceof SyntaxError
+            ? "The request was not valid JSON."
+            : "The model request failed. Check the endpoint, model, and key.";
 
-          const outputText =
-            payload.output_text ??
-            payload.output
-              ?.flatMap((item) => item.content ?? [])
-              .find((item) => item.type === "output_text")?.text;
-
-          if (!outputText)
-            throw new Error("The model returned no structured output.");
-          res.setHeader("Content-Type", "application/json");
-
-          return res.end(
-            JSON.stringify({ ...JSON.parse(outputText), mode: "live" }),
-          );
-        } catch (error) {
-          res.statusCode = 500;
-          res.setHeader("Content-Type", "application/json");
-          res.end(
-            JSON.stringify({
-              error: error instanceof Error ? error.message : "Run failed.",
-            }),
-          );
+          return json(res, 500, JSON.stringify({ error: message }));
         }
       });
     },
-  };
+  } satisfies import("vite").Plugin;
 }
 
 export default defineConfig({
