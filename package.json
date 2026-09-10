@@ -13,9 +13,10 @@
     "check": "pnpm lint && pnpm test && pnpm build && pnpm test:e2e"
   },
   "dependencies": {
-    "@base-ui/react": "1.1.0",
     "@ai-sdk/openai-compatible": "3.0.47",
+    "@base-ui/react": "1.1.0",
     "@fontsource-variable/geist": "5.2.8",
+    "@openrouter/ai-sdk-provider": "3.0.0",
     "ai": "7.0.97",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
@@ -32,8 +33,8 @@
     "@eslint/js": "10.0.1",
     "@oxlint/plugins": "1.82.0",
     "@playwright/test": "1.63.0",
-    "@tailwindcss/vite": "4.3.3",
     "@tailwindcss/oxide-darwin-arm64": "4.3.3",
+    "@tailwindcss/vite": "4.3.3",
     "@testing-library/dom": "10.4.1",
     "@testing-library/jest-dom": "7.0.1",
     "@testing-library/react": "16.3.3",

@@ -1,5 +1,6 @@
 export type ProviderId =
   | "demo"
+  | "openrouter"
   | "nvidia"
   | "openai"
   | "ollama"
@@ -18,6 +19,11 @@ export const providerPresets: Record<
   Omit<ModelConnection, "apiKey">
 > = {
   demo: { provider: "demo", model: "Built-in council", baseURL: "" },
+  openrouter: {
+    provider: "openrouter",
+    model: "nvidia/nemotron-3-ultra-550b-a55b:free",
+    baseURL: "https://openrouter.ai/api/v1",
+  },
   nvidia: {
     provider: "nvidia",
     model: "nvidia/nemotron-3-ultra-550b-a55b",
@@ -53,4 +59,3 @@ export const defaultConnection: ModelConnection = {
 export function needsApiKey(provider: ProviderId) {
   return provider === "nvidia" || provider === "openai";
 }
-

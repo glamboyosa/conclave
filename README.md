@@ -2,7 +2,7 @@
 
 Conclave is a local web app that turns a decision brief into three independent positions and a decision memo.
 
-It runs without credentials using a deterministic local engine. The Settings page can connect NVIDIA NIM, OpenAI, Ollama, LM Studio, or another OpenAI-compatible endpoint through Vercel AI SDK.
+It runs without credentials using a deterministic local engine. The Settings page can connect OpenRouter, NVIDIA NIM, OpenAI, Ollama, LM Studio, or another OpenAI-compatible endpoint through Vercel AI SDK.
 
 ## Install and run
 
@@ -25,13 +25,21 @@ A completed run contains opportunity, evidence, and risk positions; a chair reco
 
 Open **Settings** and select a provider:
 
+- **OpenRouter** defaults to the free `nvidia/nemotron-3-ultra-550b-a55b:free` route. Change the model ID to use OpenAI, Anthropic, DeepSeek, Kimi, or another model in OpenRouter's catalog.
 - **NVIDIA NIM** uses `nvidia/nemotron-3-ultra-550b-a55b` and NVIDIA's hosted development endpoint by default.
 - **OpenAI** uses `gpt-5-mini` and the OpenAI API by default.
 - **Ollama** uses `http://127.0.0.1:11434/v1` by default.
 - **LM Studio** uses `http://127.0.0.1:1234/v1` by default.
 - **OpenAI-compatible** accepts any model ID and compatible base URL.
 
-Hosted providers need an API key. The key lives only in React state for the current tab and is sent to the local Vite middleware with the decision brief. It is not written to local storage, session storage, source files, or logs. Reloading the page clears it. The local middleware sends it only to the endpoint shown in Settings for that run.
+Hosted providers need an API key, including models marked free. For OpenRouter, the safer shared-device setup is a server-held key in `.env.local`:
+
+```dotenv
+OPENROUTER_API_KEY=replace_with_a_fresh_key
+CONCLAVE_SITE_URL=http://localhost:4173
+```
+
+`.env.local` is ignored by Git. The browser never receives a server-held key. If a user enters a key in Settings, it lives only in React state for the current tab and travels to the local middleware with that run. The app does not write it to local storage, session storage, files, or logs. Reloading clears it.
 
 Ollama and LM Studio do not require a key by default. Start their OpenAI-compatible server, enter the model ID it exposes, and save the connection. Local model quality and structured-output support vary by model.
 
@@ -46,7 +54,7 @@ Current output from the full check:
 ```text
 Test Files  2 passed (2)
 Tests       5 passed (5)
-12 passed
+14 passed
 ```
 
 The command runs Oxlint with the vendored anti-slop rules, ESLint, Vitest, a production build, and Playwright against desktop Chromium and a mobile WebKit viewport.

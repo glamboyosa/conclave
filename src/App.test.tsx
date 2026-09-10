@@ -21,14 +21,41 @@ describe("decision room", () => {
     );
   });
   it("keeps API keys out of local storage", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockRejectedValue(new Error("stop"));
+
     render(<App />);
     await userEvent.click(screen.getByRole("button", { name: "Settings" }));
-    await userEvent.selectOptions(screen.getByLabelText("Provider"), "nvidia");
-    await userEvent.type(screen.getByLabelText("API key"), "nvapi-secret-value");
-    await userEvent.click(screen.getByRole("button", { name: "Save connection" }));
+    await userEvent.selectOptions(
+      screen.getByLabelText("Provider"),
+      "openrouter",
+    );
+    await userEvent.type(
+      screen.getByLabelText(/API key/),
+      "temporary-secret-value",
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Save connection" }),
+    );
 
-    expect(localStorage.getItem("conclave:connection")).not.toContain("nvapi-secret-value");
-    expect(screen.getByText(/NVIDIA NIM/)).toBeInTheDocument();
+    expect(localStorage.getItem("conclave:connection")).not.toContain(
+      "temporary-secret-value",
+    );
+    expect(screen.getByText(/OpenRouter/)).toBeInTheDocument();
+    await userEvent.type(
+      screen.getByLabelText("Decision brief"),
+      "Should we launch this product to five customers next month?",
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: /convene council/i }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/run",
+      expect.objectContaining({
+        body: expect.stringContaining("temporary-secret-value"),
+      }),
+    );
   });
   it("runs the council and renders the memo", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(

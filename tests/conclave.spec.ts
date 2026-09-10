@@ -42,14 +42,33 @@ test("the API rejects an underspecified brief", async ({ request }) => {
   });
 });
 
-test("settings configure NVIDIA without persisting the key", async ({ page }) => {
+test("settings configure OpenRouter without persisting the key", async ({ page }) => {
   await page.getByRole("button", { name: "Settings" }).click();
-  await page.getByLabel("Provider").selectOption("nvidia");
-  await expect(page.getByLabel("Model ID")).toHaveValue("nvidia/nemotron-3-ultra-550b-a55b");
-  await page.getByLabel("API key").fill("nvapi-test-secret");
+  await page.getByLabel("Provider").selectOption("openrouter");
+  await expect(page.getByLabel("Model ID")).toHaveValue("nvidia/nemotron-3-ultra-550b-a55b:free");
+  await page.getByLabel(/API key/).fill("temporary-test-secret");
   await page.getByRole("button", { name: "Save connection" }).click();
-  await expect(page.getByText(/NVIDIA NIM/)).toBeVisible();
+  await expect(page.getByText(/OpenRouter/)).toBeVisible();
 
   const storage = await page.evaluate(() => localStorage.getItem("conclave:connection"));
-  expect(storage).not.toContain("nvapi-test-secret");
+  expect(storage).not.toContain("temporary-test-secret");
+});
+
+test("OpenRouter rejects a request without any key", async ({ request }) => {
+  const response = await request.post("/api/run", {
+    data: {
+      brief: "Should we launch this product to five customers next month?",
+      connection: {
+        provider: "openrouter",
+        model: "nvidia/nemotron-3-ultra-550b-a55b:free",
+        baseURL: "https://openrouter.ai/api/v1",
+        apiKey: "",
+      },
+    },
+  });
+
+  expect(response.status()).toBe(400);
+  await expect(response.json()).resolves.toEqual({
+    error: "OpenRouter needs a key in Settings or .env.local.",
+  });
 });

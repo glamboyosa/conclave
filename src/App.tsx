@@ -55,6 +55,7 @@ type View = "decision" | "settings";
 
 const providerNames: Record<ProviderId, string> = {
   demo: "Built-in demo",
+  openrouter: "OpenRouter",
   nvidia: "NVIDIA NIM",
   openai: "OpenAI",
   ollama: "Ollama",
@@ -64,6 +65,7 @@ const providerNames: Record<ProviderId, string> = {
 
 function parseProvider(value: string): ProviderId {
   switch (value) {
+    case "openrouter":
     case "nvidia":
     case "openai":
     case "ollama":
@@ -350,6 +352,7 @@ export default function App() {
                     <label>
                       <span>API endpoint</span>
                       <input
+                        type="url"
                         value={connection.baseURL}
                         onChange={(event) =>
                           setConnection({
@@ -377,6 +380,8 @@ export default function App() {
                             })
                           }
                           autoComplete="off"
+                          data-1p-ignore
+                          data-lpignore="true"
                           spellCheck={false}
                           placeholder="Held for this tab only"
                         />
@@ -388,6 +393,13 @@ export default function App() {
                   <p className="provider-note">
                     Nemotron 3 Ultra is preselected. NVIDIA currently offers a
                     free development endpoint; usage limits are set by NVIDIA.
+                  </p>
+                )}
+                {connection.provider === "openrouter" && (
+                  <p className="provider-note">
+                    Free Nemotron 3 Ultra is preselected. Use any OpenRouter
+                    model ID here for OpenAI, Anthropic, DeepSeek, Kimi, and
+                    other models. A key in .env.local also works.
                   </p>
                 )}
                 {connection.provider === "demo" && (
