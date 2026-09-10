@@ -34,6 +34,8 @@ const catalogSchema = z.object({
 function json(res: import("node:http").ServerResponse, status: number, body: string) {
   res.statusCode = status;
   res.setHeader("Content-Type", "application/json");
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("Referrer-Policy", "no-referrer");
   res.end(body);
 }
 
@@ -100,8 +102,17 @@ function apiPlugin() {
         if (req.method !== "POST") return json(res, 405, JSON.stringify({ error: "Method not allowed." }));
 
         let body = "";
-        req.on("data", (chunk) => (body += chunk));
+        let oversized = false;
+        req.on("data", (chunk) => {
+          body += chunk;
+
+          if (body.length > 16_384) oversized = true;
+        });
         await new Promise((resolve) => req.on("end", resolve));
+
+        if (oversized) {
+          return json(res, 413, JSON.stringify({ error: "Request is too large." }));
+        }
 
         try {
           const parsed = requestSchema.safeParse(JSON.parse(body));
@@ -122,8 +133,8 @@ function apiPlugin() {
 
           const env = loadEnv("development", process.cwd(), "");
 
-          if (connection.provider === "openrouter" && !connection.apiKey && !env.OPENROUTER_API_KEY) {
-            return json(res, 400, JSON.stringify({ error: "OpenRouter needs a key in Settings or .env.local." }));
+          if (connection.provider === "openrouter" && !connection.apiKey) {
+            return json(res, 400, JSON.stringify({ error: "Add your OpenRouter API key in Settings." }));
           }
 
           if ((connection.provider === "openai" || connection.provider === "nvidia") && !connection.apiKey) {
@@ -132,7 +143,7 @@ function apiPlugin() {
 
           const model = connection.provider === "openrouter"
               ? createOpenRouter({
-                  apiKey: connection.apiKey || env.OPENROUTER_API_KEY,
+                  apiKey: connection.apiKey,
                   compatibility: "strict",
                   extraBody: {
                     reasoning: { effort: "low", exclude: true },

@@ -38,14 +38,13 @@ Open **Settings** and select a provider:
 - **LM Studio** uses `http://127.0.0.1:1234/v1` by default.
 - **OpenAI-compatible** accepts any model ID and compatible base URL.
 
-Hosted providers need an API key, including models marked free. For OpenRouter, the safer shared-device setup is a server-held key in `.env.local`:
+Hosted providers need your API key, including models marked free. Enter it in Settings before using the connection. `.env.local` is still available for non-secret site metadata:
 
 ```dotenv
-OPENROUTER_API_KEY=replace_with_a_fresh_key
 CONCLAVE_SITE_URL=http://localhost:4173
 ```
 
-`.env.local` is ignored by Git. The browser never receives a server-held key. If a user enters a key in Settings, it lives only in React state for the current tab and travels to the local middleware with that run. The app does not write it to local storage, session storage, files, or logs. Reloading clears it.
+The key lives only in React state for the current page and travels through the local middleware with each run. The app does not write it to local storage, session storage, files, or logs. Reloading clears it. Use HTTPS when deploying Conclave beyond localhost.
 
 Ollama and LM Studio do not require a key by default. Start their OpenAI-compatible server, enter the model ID it exposes, and save the connection. Local model quality and structured-output support vary by model.
 

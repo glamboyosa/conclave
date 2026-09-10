@@ -12,6 +12,15 @@
   --color-border: var(--border);
   --color-ring: var(--ring);
   --color-destructive: var(--destructive);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-input: var(--input);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
 }
@@ -35,6 +44,16 @@
   --border: rgba(27, 32, 28, 0.1);
   --ring: #4f8069;
   --destructive: #a85045;
+  --card: #faf9f5;
+  --card-foreground: #1b201c;
+  --popover: #ffffff;
+  --popover-foreground: #1b201c;
+  --input: rgba(27, 32, 28, 0.16);
+  --accent: #ecece6;
+  --accent-foreground: #1b201c;
+  --secondary: #ecece6;
+  --secondary-foreground: #3f4640;
+  --z-dropdown: 100;
   --radius: 10px;
 }
 * {

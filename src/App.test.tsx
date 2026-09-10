@@ -28,13 +28,13 @@ describe("decision room", () => {
     render(<App />);
     await userEvent.click(screen.getAllByRole("button", { name: "Settings" })[0]);
     await userEvent.click(screen.getByLabelText("Provider"));
-    await userEvent.click(screen.getByRole("option", { name: "OpenRouter" }));
+    await userEvent.keyboard("{ArrowDown}{Enter}");
     await userEvent.type(
       screen.getByLabelText(/API key/),
       "temporary-secret-value",
     );
     await userEvent.click(
-      screen.getByRole("button", { name: "Save connection" }),
+      screen.getByRole("button", { name: "Use this connection" }),
     );
 
     expect(localStorage.getItem("conclave:connection")).not.toContain(

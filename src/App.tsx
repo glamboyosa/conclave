@@ -119,6 +119,10 @@ function parseProvider(value: string): ProviderId {
   }
 }
 
+function providerLabel(provider: ProviderId) {
+  return providerNames[provider];
+}
+
 function loadSavedRun(): SavedRun {
   const saved = localStorage.getItem("conclave:lastRun");
 
@@ -235,6 +239,13 @@ export default function App() {
       return;
     }
 
+    if (needsApiKey(connection.provider) && !connection.apiKey.trim()) {
+      setError("Add your API key before running this hosted model.");
+      setView("settings");
+
+      return;
+    }
+
     setError("");
     setPhase("running");
     setResult(null);
@@ -336,6 +347,9 @@ export default function App() {
   }
 
   const chars = brief.length;
+
+  const modelLabel = (modelId: string) =>
+    models.find((model) => model.id === modelId)?.name ?? modelId;
 
   return (
     <div className="shell">
@@ -479,7 +493,11 @@ export default function App() {
                   <CardDescription>
                     Choose a provider, then select the model used by every council member.
                   </CardDescription>
-                  <Badge variant="secondary">Saved locally · key excluded</Badge>
+                  <Badge variant="secondary">
+                    {needsApiKey(connection.provider) && !connection.apiKey
+                      ? "API key required"
+                      : "Ready for this tab"}
+                  </Badge>
                 </CardHeader>
                 <form onSubmit={saveConnection}>
                   <CardContent>
@@ -488,10 +506,11 @@ export default function App() {
                       <FieldLabel htmlFor="provider">Provider</FieldLabel>
                       <Select
                         value={connection.provider}
+                        itemToStringLabel={providerLabel}
                         onValueChange={(value) => chooseProvider(parseProvider(value ?? ""))}
                       >
                         <SelectTrigger id="provider" className="settings-control" aria-label="Provider">
-                          <SelectValue>{providerNames[connection.provider]}</SelectValue>
+                          <SelectValue />
                         </SelectTrigger>
                         <SelectContent align="start">
                           <SelectGroup>
@@ -510,11 +529,9 @@ export default function App() {
                     <Field>
                       <FieldLabel htmlFor="model">Model</FieldLabel>
                       {connection.provider === "openrouter" && models.length ? (
-                        <Select value={connection.model} onValueChange={(model) => setConnection({ ...connection, model: model ?? "" })}>
+                        <Select value={connection.model} itemToStringLabel={modelLabel} onValueChange={(model) => setConnection({ ...connection, model: model ?? "" })}>
                           <SelectTrigger id="model" className="settings-control" aria-label="Model">
-                            <SelectValue>
-                              {models.find((model) => model.id === connection.model)?.name ?? connection.model}
-                            </SelectValue>
+                            <SelectValue />
                           </SelectTrigger>
                           <SelectContent align="start">
                             <SelectGroup>
@@ -577,7 +594,7 @@ export default function App() {
                         />
                       </div>
                       <FieldDescription>
-                        Never saved to browser storage. A server-side OpenRouter key can be set in <code>.env.local</code> instead.
+                        Held in this tab’s memory. Sent to the local Conclave server only when you run the council; never saved by Conclave.
                       </FieldDescription>
                     </Field>
                   </>
@@ -600,7 +617,7 @@ export default function App() {
                     </FieldGroup>
                   </CardContent>
                   <CardFooter className="settings-actions">
-                    <Button type="submit">Save connection</Button>
+                    <Button type="submit">Use this connection</Button>
                   </CardFooter>
                 </form>
               </Card>

@@ -57,7 +57,7 @@ export const defaultConnection: ModelConnection = {
 };
 
 export function needsApiKey(provider: ProviderId) {
-  return provider === "nvidia" || provider === "openai";
+  return provider === "openrouter" || provider === "nvidia" || provider === "openai";
 }
 
 export function needsEndpoint(provider: ProviderId) {

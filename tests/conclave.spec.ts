@@ -48,7 +48,7 @@ test("settings configure OpenRouter without persisting the key", async ({ page }
   await page.getByRole("option", { name: "OpenRouter" }).click();
   await expect(page.getByLabel("Model")).toBeVisible();
   await page.getByLabel(/API key/).fill("temporary-test-secret");
-  await page.getByRole("button", { name: "Save connection" }).click();
+  await page.getByRole("button", { name: "Use this connection" }).click();
   await expect(page.getByRole("heading", { name: /Bring the decision/ })).toBeVisible();
 
   const storage = await page.evaluate(() => localStorage.getItem("conclave:connection"));
