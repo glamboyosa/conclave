@@ -2,7 +2,7 @@
 
 Conclave is a local web app that turns a decision brief into three independent positions and a decision memo.
 
-The default model is NVIDIA Nemotron 3 Super on OpenRouter's free tier, covered by a shared key — nothing to configure. A model picker on the decision page switches providers (Anthropic, OpenAI, Google, Kimi, DeepSeek, xAI, Groq, Mistral, NVIDIA NIM) with live model catalogs and bring-your-own-key support through Vercel AI SDK. An offline, deterministic council runs with no credentials and no network.
+The default model is NVIDIA Nemotron 3 Super on OpenRouter's free tier, covered by a shared key — nothing to configure. A single grouped model picker on the decision page switches providers (Anthropic, OpenAI, Google, Kimi, DeepSeek, xAI, Groq, Mistral, NVIDIA) with live model catalogs and bring-your-own-key support through Vercel AI SDK. An offline, deterministic council runs with no credentials and no network.
 
 ## Install and run
 
@@ -29,10 +29,11 @@ Use **Export Markdown** on a memo or Library record to download the brief, indep
 
 ## Model connections
 
-The **model picker** on the decision page has three parts: a provider list, a model list loaded live from that provider's catalog, and — for hosted providers — a key field.
+The **model picker** on the decision page is one dropdown, grouped by provider: the active provider's group lists its live catalog, the others list popular models, and — for hosted providers — a key field sits alongside.
 
 - **OpenRouter** is the default. The free `nvidia/nemotron-3-super-120b-a12b:free` route runs on the shared key from `.env.local`, so it works out of the box. The shared key covers `:free` models only; add your own OpenRouter key to run paid catalog models.
-- **Anthropic, OpenAI, Google, Kimi (Moonshot), DeepSeek, xAI, Groq, Mistral, NVIDIA NIM** are bring-your-own-key. Paste a key and the picker loads the provider's live model list; without a key it shows a short list of popular models.
+- **NVIDIA** runs through OpenRouter — free routes on the shared key, paid routes with your own OpenRouter key. Its catalog is the OpenRouter list filtered to `nvidia/*` models.
+- **Anthropic, OpenAI, Google, Kimi (Moonshot), DeepSeek, xAI, Groq, Mistral** are bring-your-own-key. Paste a key and the picker loads the provider's live model list; without a key it shows a short list of popular models.
 - **Offline** is the deterministic local council — no key, no network.
 
 **Settings** holds exactly one control: a dropdown of popular models. It never asks you to type a model ID or an endpoint.
@@ -57,9 +58,9 @@ pnpm check
 Current output from the full check:
 
 ```text
-Test Files  2 passed (2)
-Tests       6 passed (6)
-16 passed
+Test Files  3 passed (3)
+Tests       9 passed (9)
+28 passed
 ```
 
 The command runs Oxlint with the vendored anti-slop rules, ESLint, Vitest, a production build, and Playwright against desktop Chromium and a mobile WebKit viewport.

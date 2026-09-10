@@ -34,6 +34,8 @@ export type ProviderMeta = {
   key: "none" | "optional" | "required";
   /** Where the user can create an API key. */
   keyUrl?: string;
+  /** Name shown on the key field when it differs from the provider name (NVIDIA runs on OpenRouter keys). */
+  keyName?: string;
   defaultModel: string;
   /** Curated models shown before (or instead of) the live catalog. */
   popular: CatalogModel[];
@@ -163,13 +165,15 @@ export const providerMeta: Record<ProviderId, ProviderMeta> = {
   },
   nvidia: {
     id: "nvidia",
-    name: "NVIDIA NIM",
-    key: "required",
-    keyUrl: "https://build.nvidia.com/",
-    defaultModel: "nvidia/nemotron-3-ultra-550b-a55b",
+    name: "NVIDIA",
+    key: "optional",
+    keyUrl: "https://openrouter.ai/keys",
+    keyName: "OpenRouter",
+    defaultModel: "nvidia/nemotron-3-super-120b-a12b:free",
     popular: [
+      free("nvidia/nemotron-3-super-120b-a12b:free", "Nemotron 3 Super 120B"),
+      paid("nvidia/nemotron-3-nano-30b-a3b", "Nemotron 3 Nano 30B"),
       paid("nvidia/nemotron-3-ultra-550b-a55b", "Nemotron 3 Ultra"),
-      paid("meta/llama-3.3-70b-instruct", "Llama 3.3 70B"),
     ],
   },
   ollama: {
@@ -227,6 +231,11 @@ export function needsApiKey(provider: ProviderId) {
 
 export function keyOptional(provider: ProviderId) {
   return providerMeta[provider]?.key === "optional";
+}
+
+/** In-memory key slot — NVIDIA shares OpenRouter's key, since NVIDIA runs through OpenRouter. */
+export function keySlot(provider: ProviderId): ProviderId {
+  return provider === "nvidia" ? "openrouter" : provider;
 }
 
 export function popularModels(provider: ProviderId): CatalogModel[] {

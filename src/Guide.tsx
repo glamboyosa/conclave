@@ -30,7 +30,7 @@ const agents = [
   },
 ];
 
-const byokProviders = pickerProviders.filter((id) => id !== "demo" && id !== "openrouter");
+const byokProviders = pickerProviders.filter((id) => providerMeta[id].key === "required");
 
 const copy =
   "mb-[10px] max-w-[640px] text-[13px] leading-[1.7] text-pretty text-body";
@@ -102,10 +102,12 @@ export function GuideView() {
       </div>
       <p className={copy}>
         The default is NVIDIA Nemotron 3 Super on OpenRouter’s free tier,
-        covered by Conclave’s shared key — nothing to configure. To use
-        anything else, pick a provider in the model picker and paste your key.
-        The picker loads each provider’s live model catalog; without a key it
-        shows a short list of popular models.
+        covered by Conclave’s shared key — nothing to configure. Every NVIDIA
+        model runs through OpenRouter the same way: free routes need no key at
+        all, paid ones take your own OpenRouter key. For anyone else, pick a
+        model in the picker and paste that provider’s key. The picker loads
+        each provider’s live model catalog; without a key it shows a short
+        list of popular models.
       </p>
       <div className="mt-[4px] mb-[14px] flex flex-wrap gap-[7px]" role="list">
         <span
@@ -113,6 +115,12 @@ export function GuideView() {
           className="rounded-full bg-lime px-[10px] py-[6px] font-mono text-[10px] font-medium text-[#1d2520]"
         >
           OpenRouter · Free default
+        </span>
+        <span
+          role="listitem"
+          className="rounded-full bg-lime px-[10px] py-[6px] font-mono text-[10px] font-medium text-[#1d2520]"
+        >
+          NVIDIA · via OpenRouter
         </span>
         {byokProviders.map((id) => (
           <span

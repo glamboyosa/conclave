@@ -92,8 +92,6 @@ function json(res: import("node:http").ServerResponse, status: number, body: str
 }
 
 function compatibleBaseURL(provider: string, requestedURL: string) {
-  if (provider === "nvidia") return "https://integrate.api.nvidia.com/v1";
-
   const url = new URL(requestedURL);
   const loopback = url.hostname === "127.0.0.1" || url.hostname === "localhost";
 
@@ -200,11 +198,16 @@ const openAIStyleEndpoints: Partial<Record<ProviderId, string>> = {
   xai: "https://api.x.ai/v1",
   groq: "https://api.groq.com/openai/v1",
   mistral: "https://api.mistral.ai/v1",
-  nvidia: "https://integrate.api.nvidia.com/v1",
 };
 
 async function fetchProviderModels(provider: ProviderId, key: string): Promise<CatalogModel[]> {
   if (provider === "openrouter") return fetchOpenRouterModels();
+
+  if (provider === "nvidia") {
+    const models = await fetchOpenRouterModels();
+
+    return models.filter((model) => model.id.startsWith("nvidia/"));
+  }
 
   if (provider === "anthropic") return fetchAnthropicModels(key);
 
@@ -222,7 +225,9 @@ function buildModel(
   env: Record<string, string>,
 ) {
   switch (connection.provider) {
-    case "openrouter": {
+    case "openrouter":
+    case "nvidia": {
+      // NVIDIA runs through OpenRouter: the shared key covers :free routes, a user key unlocks paid ones.
       const userKey = connection.apiKey.trim();
       const sharedKey = env.OPENROUTER_API_KEY?.trim() ?? "";
       const apiKey = userKey || sharedKey;
@@ -232,6 +237,10 @@ function buildModel(
           400,
           "Add your OpenRouter API key in the model picker, or set OPENROUTER_API_KEY in .env.local.",
         );
+      }
+
+      if (connection.provider === "nvidia" && !connection.model.startsWith("nvidia/")) {
+        throw new ApiError(400, "NVIDIA runs use nvidia/* models on OpenRouter.");
       }
 
       if (!userKey && sharedKey && !connection.model.endsWith(":free")) {
@@ -270,13 +279,6 @@ function buildModel(
       return createGroq({ apiKey: requireKey(connection.apiKey, "Groq") })(connection.model);
     case "mistral":
       return createMistral({ apiKey: requireKey(connection.apiKey, "Mistral") })(connection.model);
-    case "nvidia":
-      return createOpenAICompatible({
-        name: "nvidia",
-        baseURL: compatibleBaseURL("nvidia", connection.baseURL),
-        apiKey: requireKey(connection.apiKey, "NVIDIA NIM"),
-        supportsStructuredOutputs: true,
-      }).chatModel(connection.model);
     case "ollama":
     case "lmstudio":
     case "custom":
@@ -306,8 +308,20 @@ function apiPlugin() {
           const keyHeader = req.headers["x-conclave-key"];
           const key = (Array.isArray(keyHeader) ? keyHeader[0] : keyHeader)?.trim() ?? "";
 
-          if (provider === "openrouter" && !key && modelCatalog && modelCatalog.expiresAt > Date.now()) {
-            return json(res, 200, JSON.stringify({ models: modelCatalog.models, source: "live" }));
+          if (
+            (provider === "openrouter" || provider === "nvidia") &&
+            !key &&
+            modelCatalog &&
+            modelCatalog.expiresAt > Date.now()
+          ) {
+            const cached =
+              provider === "nvidia"
+                ? modelCatalog.models.filter((model) => model.id.startsWith("nvidia/"))
+                : modelCatalog.models;
+
+            if (cached.length) {
+              return json(res, 200, JSON.stringify({ models: cached, source: "live" }));
+            }
           }
 
           try {
