@@ -13,7 +13,15 @@
     "check": "pnpm lint && pnpm test && pnpm build && pnpm test:e2e"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.52",
+    "@ai-sdk/deepseek": "^3.0.42",
+    "@ai-sdk/google": "^4.0.67",
+    "@ai-sdk/groq": "^4.0.40",
+    "@ai-sdk/mistral": "^4.0.42",
+    "@ai-sdk/moonshotai": "^3.0.48",
+    "@ai-sdk/openai": "^4.0.65",
     "@ai-sdk/openai-compatible": "3.0.47",
+    "@ai-sdk/xai": "^4.0.57",
     "@base-ui/react": "1.1.0",
     "@fontsource-variable/geist": "5.2.8",
     "@openrouter/ai-sdk-provider": "3.0.0",
@@ -56,5 +64,10 @@
     "vite": "8.3.0",
     "vitest": "5.0.0"
   },
-  "packageManager": "pnpm@10.15.0"
+  "packageManager": "pnpm@10.15.0",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "node"
+    ]
+  }
 }
