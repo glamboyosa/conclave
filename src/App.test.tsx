@@ -26,9 +26,9 @@ describe("decision room", () => {
       .mockRejectedValue(new Error("stop"));
 
     render(<App />);
-    await userEvent.click(screen.getByLabelText("Provider"));
+    await userEvent.click(screen.getByLabelText("Model"));
     await userEvent.click(
-      await screen.findByRole("option", { name: "Anthropic" }),
+      await screen.findByRole("option", { name: "Claude Sonnet 4.5" }),
     );
     await userEvent.type(
       screen.getByLabelText(/API key/),
@@ -38,7 +38,9 @@ describe("decision room", () => {
     expect(localStorage.getItem("conclave:connection")).not.toContain(
       "temporary-secret-value",
     );
-    expect(localStorage.getItem("conclave:connection")).toContain("anthropic");
+    expect(localStorage.getItem("conclave:connection")).toContain(
+      '"provider":"anthropic"',
+    );
     await userEvent.type(
       screen.getByLabelText("Decision brief"),
       "Should we launch this product to five customers next month?",
@@ -59,9 +61,9 @@ describe("decision room", () => {
       .mockRejectedValue(new Error("stop"));
 
     render(<App />);
-    await userEvent.click(screen.getByLabelText("Provider"));
+    await userEvent.click(screen.getByLabelText("Model"));
     await userEvent.click(
-      await screen.findByRole("option", { name: "Anthropic" }),
+      await screen.findByRole("option", { name: "Claude Sonnet 4.5" }),
     );
     await userEvent.type(
       screen.getByLabelText("Decision brief"),
@@ -135,6 +137,30 @@ describe("decision room", () => {
       await screen.findByText("Pilot it.", {}, { timeout: 2500 }),
     ).toBeInTheDocument();
     expect(screen.getAllByText(/Local council/i).length).toBeGreaterThan(0);
+  });
+  it("runs free NVIDIA models on the shared OpenRouter key", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("stop"));
+
+    render(<App />);
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.click(
+      await screen.findByRole("option", { name: /Nemotron 3 Super 120B/ }),
+    );
+
+    expect(localStorage.getItem("conclave:connection")).toContain(
+      '"provider":"nvidia"',
+    );
+    expect(screen.getByLabelText(/OpenRouter API key/)).toBeInTheDocument();
+    expect(screen.getByText(/shared OpenRouter key/)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.click(
+      await screen.findByRole("option", { name: "Nemotron 3 Nano 30B" }),
+    );
+
+    expect(
+      screen.getByText(/shared key covers free models only/),
+    ).toBeInTheDocument();
   });
   it("switches models from the settings dropdown only", async () => {
     vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("stop"));

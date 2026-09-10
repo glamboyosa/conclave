@@ -1,9 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
 
 async function useOfflineCouncil(page: Page) {
-  await page.getByLabel("Provider").click();
-  await page.getByRole("option", { name: "Offline" }).click();
-  await expect(page.getByLabel("Provider")).toContainText("Offline");
+  await page.getByLabel("Model").click();
+  await page.getByRole("option", { name: /Offline council/ }).click();
+  await expect(page.getByLabel("Model")).toContainText("Offline council");
 }
 
 test.beforeEach(async ({ page }) => {
@@ -13,10 +13,11 @@ test('example brief becomes a complete decision memo', async ({ page }) => { awa
 test('invalid brief is rejected accessibly', async ({ page }) => { await page.getByLabel('Decision brief').fill('Too short'); await page.getByRole('button',{name:/convene council/i}).click(); await expect(page.getByRole('alert')).toContainText('at least 20 characters'); await expect(page.getByLabel('Decision brief')).toBeFocused(); });
 
 test("BYOK providers ask for a key instead of running", async ({ page }) => {
-  await page.getByLabel("Provider").click();
-  await page.getByRole("option", { name: "Anthropic" }).click();
+  await page.getByLabel("Model").click();
+  await page
+    .getByRole("option", { name: "Claude Sonnet 4.5", exact: true })
+    .click();
   await expect(page.getByLabel(/API key/)).toBeVisible();
-  await expect(page.getByLabel("Model")).toBeVisible();
   await page
     .getByLabel("Decision brief")
     .fill("Should we launch this product to five customers next month?");
@@ -25,6 +26,44 @@ test("BYOK providers ask for a key instead of running", async ({ page }) => {
     "Add your Anthropic API key",
   );
   await expect(page.getByLabel(/API key/)).toBeFocused();
+});
+
+test("NVIDIA models run through OpenRouter without a separate key", async ({ page }) => {
+  await page.getByLabel("Model").click();
+  await page
+    .getByRole("option", { name: /Nemotron 3 Super 120B/ })
+    .click();
+  await expect(page.getByLabel(/OpenRouter API key/)).toBeVisible();
+  await expect(page.getByText(/shared OpenRouter key/)).toBeVisible();
+});
+
+test("the API serves the NVIDIA catalog filtered from OpenRouter", async ({ request }) => {
+  const response = await request.get("/api/models?provider=nvidia");
+
+  expect(response.status()).toBe(200);
+  const body = await response.json();
+  expect(body.models.length).toBeGreaterThan(0);
+  expect(
+    body.models.every((model: { id: string }) => model.id.startsWith("nvidia/")),
+  ).toBe(true);
+});
+
+test("the shared key refuses paid NVIDIA models", async ({ request }) => {
+  const response = await request.post("/api/run", {
+    data: {
+      brief: "Should we launch this product to five customers next month?",
+      connection: {
+        provider: "nvidia",
+        model: "nvidia/nemotron-3-ultra-550b-a55b",
+        baseURL: "",
+        apiKey: "",
+      },
+    },
+  });
+
+  expect(response.status()).toBe(400);
+  const body = await response.json();
+  expect(body.error).toMatch(/OpenRouter/);
 });
 
 test("a completed memo survives reload and can be cleared", async ({ page }) => {

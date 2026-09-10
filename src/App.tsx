@@ -10,7 +10,6 @@ import {
   Command,
   Download,
   FileText,
-  LoaderCircle,
   Plus,
   RotateCcw,
   Settings,
@@ -46,6 +45,7 @@ import { GuideView } from "./Guide";
 import {
   defaultConnection,
   keyOptional,
+  keySlot,
   needsApiKey,
   parseProvider,
   pickerProviders,
@@ -211,6 +211,7 @@ export default function App() {
     if (connection.provider === "demo") return;
 
     const controller = new AbortController();
+    let stale = false;
 
     fetch(`/api/models?provider=${connection.provider}`, {
       signal: controller.signal,
@@ -222,18 +223,33 @@ export default function App() {
         return catalogResponseSchema.parse(await response.json());
       })
       .then(({ models: nextModels, source }) => {
-        setModels(nextModels.length ? nextModels : popularModels(connection.provider));
+        // A switch that happened while this fetch was in flight must not overwrite the new provider's list.
+        if (stale) return;
+
+        const live = nextModels.length ? nextModels : popularModels(connection.provider);
+
+        const missing = popularModels(connection.provider).filter(
+          (popular) => !live.some((model) => model.id === popular.id),
+        );
+
+        setModels([...live, ...missing]);
         setModelSource(nextModels.length ? source : "fallback");
         setModelStatus("ready");
       })
       .catch((cause: unknown) => {
+        if (stale) return;
+
         if (cause instanceof DOMException && cause.name === "AbortError") return;
+
         setModels(popularModels(connection.provider));
         setModelSource("fallback");
         setModelStatus("ready");
       });
 
-    return () => controller.abort();
+    return () => {
+      stale = true;
+      controller.abort();
+    };
   }, [connection.provider, debouncedKey]);
 
   function persistConnection(next: ModelConnection) {
@@ -247,58 +263,36 @@ export default function App() {
     );
   }
 
-  function chooseProvider(provider: ModelConnection["provider"]) {
-    const next: ModelConnection = {
-      provider,
-      model: providerMeta[provider].defaultModel,
-      baseURL: "",
-      apiKey: keys[provider] ?? "",
-    };
-
-    setConnection(next);
-    persistConnection(next);
-    setError("");
-
-    if (provider === "demo") {
-      setModels([]);
-      setModelStatus("idle");
-    } else {
-      setModelStatus("loading");
-    }
-  }
-
-  function chooseModel(model: string) {
-    const next = { ...connection, model };
-
-    setConnection(next);
-    persistConnection(next);
-  }
-
   function changeKey(value: string) {
     setConnection({ ...connection, apiKey: value });
-    setKeys((current) => ({ ...current, [connection.provider]: value }));
+    setKeys((current) => ({ ...current, [keySlot(connection.provider)]: value }));
   }
 
-  function applyPopular(value: string) {
+  function applyModelChoice(value: string) {
     const [providerId, ...rest] = value.split("|");
     const provider = parseProvider(providerId ?? "");
     const model = rest.join("|") || providerMeta[provider].defaultModel;
+    const apiKey = keys[keySlot(provider)] ?? "";
 
-    const next: ModelConnection = {
-      provider,
-      model,
-      baseURL: "",
-      apiKey: keys[provider] ?? "",
-    };
+    const next: ModelConnection = { provider, model, baseURL: "", apiKey };
 
     setConnection(next);
     persistConnection(next);
     setError("");
+    // Skip the typing debounce on provider switches so the catalog fetch uses the right key immediately.
+    setDebouncedKey(apiKey.trim());
 
     if (provider === "demo") {
       setModels([]);
       setModelStatus("idle");
-    } else {
+
+      return;
+    }
+
+    // Seed the new provider's popular list so labels resolve instantly; the live catalog swaps in silently.
+    if (provider !== connection.provider) {
+      setModels(popularModels(provider));
+      setModelSource("fallback");
       setModelStatus("loading");
     }
   }
@@ -386,9 +380,27 @@ export default function App() {
   const meta = providerMeta[connection.provider];
 
   const modelLabel = (modelId: string) =>
-    models.find((model) => model.id === modelId)?.name ?? modelId;
+    models.find((model) => model.id === modelId)?.name ??
+    popularModels(connection.provider).find((model) => model.id === modelId)?.name ??
+    modelId;
 
-  const settingsValue = `${connection.provider}|${connection.model}`;
+  const connectionValue = `${connection.provider}|${connection.model}`;
+
+  const pickerLabel = (value: string) => {
+    const [providerId, ...rest] = value.split("|");
+    const provider = parseProvider(providerId ?? "");
+    const modelId = rest.join("|");
+
+    if (provider === "demo") return "Offline council";
+
+    const catalog = provider === connection.provider ? models : popularModels(provider);
+
+    return (
+      catalog.find((model) => model.id === modelId)?.name ??
+      popularModels(provider).find((model) => model.id === modelId)?.name ??
+      modelId
+    );
+  };
 
   const settingsLabel = (value: string) => {
     const [providerId, ...rest] = value.split("|");
@@ -415,7 +427,9 @@ export default function App() {
       noteLines.push(
         connection.apiKey
           ? "Your OpenRouter key is held in this tab’s memory only — never saved."
-          : "Runs free on Conclave’s shared OpenRouter key — no key needed. Add your own key for paid models.",
+          : connection.model.endsWith(":free")
+            ? "Runs free on Conclave’s shared OpenRouter key — no key needed. Add your own key for paid models."
+            : "The shared key covers free models only — add your own OpenRouter key to run this model.",
       );
     }
 
@@ -608,9 +622,9 @@ export default function App() {
                   <Field>
                     <FieldLabel htmlFor="popular-model">Model</FieldLabel>
                     <Select
-                      value={settingsValue}
+                      value={connectionValue}
                       itemToStringLabel={settingsLabel}
-                      onValueChange={(value) => value && applyPopular(value)}
+                      onValueChange={(value) => value && applyModelChoice(value)}
                     >
                       <SelectTrigger id="popular-model" className="settings-control" aria-label="Popular model">
                         <SelectValue />
@@ -624,11 +638,19 @@ export default function App() {
                                 Offline council · Free
                               </SelectItem>
                             ) : (
-                              popularModels(id).map((model) => (
-                                <SelectItem value={`${id}|${model.id}`} key={model.id}>
-                                  {model.name}{model.free ? " · Free" : ""}
-                                </SelectItem>
-                              ))
+                              <>
+                                {id === connection.provider &&
+                                  !popularModels(id).some((model) => model.id === connection.model) && (
+                                    <SelectItem value={connectionValue}>
+                                      {modelLabel(connection.model)}
+                                    </SelectItem>
+                                  )}
+                                {popularModels(id).map((model) => (
+                                  <SelectItem value={`${id}|${model.id}`} key={model.id}>
+                                    {model.name}{model.free ? " · Free" : ""}
+                                  </SelectItem>
+                                ))}
+                              </>
                             )}
                           </SelectGroup>
                         ))}
@@ -670,74 +692,55 @@ export default function App() {
                 evidence, and find the risk you are not naming.
               </p>
               <div className="mb-2 flex items-end gap-2.5 rounded-[18px] bg-paper p-2.5 shadow-[0_1px_1px_rgba(22,32,25,0.03),0_6px_20px_rgba(31,40,34,0.05),inset_0_0_0_1px_rgba(28,37,31,0.06)] max-[850px]:flex-col max-[850px]:items-stretch">
-                <div className="grid min-w-[148px] gap-[5px] max-[850px]:min-w-0">
+                <div className="grid min-w-0 flex-1 gap-[5px]">
                   <span className="flex items-center pl-[3px] font-mono text-[9px] uppercase tracking-[0.09em] text-faint">
-                    Provider
+                    Model
                   </span>
                   <Select
-                    value={connection.provider}
-                    itemToStringLabel={(value) => providerName(parseProvider(value))}
-                    onValueChange={(value) => value && chooseProvider(parseProvider(value))}
+                    value={connectionValue}
+                    itemToStringLabel={pickerLabel}
+                    onValueChange={(value) => value && applyModelChoice(value)}
                   >
                     <SelectTrigger
                       className="min-h-[42px] w-full rounded-lg bg-white text-[13px]"
-                      aria-label="Provider"
+                      aria-label="Model"
                     >
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent align="start">
-                      <SelectGroup>
-                        {pickerProviders.map((id) => (
-                          <SelectItem value={id} key={id}>
-                            {providerName(id)}{id === "openrouter" ? " · Free default" : ""}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
+                      {pickerProviders.map((id) => {
+                        const items: CatalogModel[] =
+                          id === "demo"
+                            ? [{ id: providerMeta.demo.defaultModel, name: "Offline council", free: true }]
+                            : id === connection.provider
+                              ? models
+                              : popularModels(id);
+
+                        if (!items.length) return null;
+
+                        return (
+                          <SelectGroup key={id}>
+                            <SelectLabel>
+                              {providerName(id)}{id === "openrouter" ? " · Free default" : ""}
+                            </SelectLabel>
+                            {items.map((model) => (
+                              <SelectItem value={`${id}|${model.id}`} key={model.id}>
+                                {model.name}{model.free ? " · Free" : ""}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        );
+                      })}
                     </SelectContent>
                   </Select>
                 </div>
-                {connection.provider !== "demo" && (
-                  <div className="grid min-w-0 flex-1 gap-[5px]">
-                    <span className="flex items-center pl-[3px] font-mono text-[9px] uppercase tracking-[0.09em] text-faint">
-                      Model
-                      {modelStatus === "loading" && (
-                        <LoaderCircle
-                          aria-hidden="true"
-                          className="ml-[5px] size-[11px] animate-spin text-faint"
-                        />
-                      )}
-                    </span>
-                    <Select
-                      value={connection.model}
-                      itemToStringLabel={modelLabel}
-                      onValueChange={(value) => value && chooseModel(value)}
-                    >
-                      <SelectTrigger
-                        className="min-h-[42px] w-full rounded-lg bg-white text-[13px]"
-                        aria-label="Model"
-                        disabled={!models.length}
-                      >
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent align="start">
-                        <SelectGroup>
-                          {models.map((model) => (
-                            <SelectItem value={model.id} key={model.id}>
-                              {model.name}{model.free ? " · Free" : ""}
-                            </SelectItem>
-                          ))}
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
                 {(needsApiKey(connection.provider) || keyOptional(connection.provider)) && (
                   <div className="grid min-w-0 flex-1 gap-[5px]">
                     <label
                       className="flex items-center pl-[3px] font-mono text-[9px] uppercase tracking-[0.09em] text-faint"
                       htmlFor="byok-key"
                     >
-                      {providerName(connection.provider)} API key
+                      {meta.keyName ?? providerName(connection.provider)} API key
                       {keyOptional(connection.provider) ? " (optional)" : ""}
                     </label>
                     <Input
@@ -769,7 +772,7 @@ export default function App() {
                     target="_blank"
                     rel="noreferrer"
                   >
-                    Get a {providerName(connection.provider)} key <ChevronRight size={12} />
+                    Get a {meta.keyName ?? providerName(connection.provider)} key <ChevronRight size={12} />
                   </a>
                 )}
               </div>
