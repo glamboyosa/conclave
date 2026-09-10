@@ -1,10 +1,34 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
+
+async function useOfflineCouncil(page: Page) {
+  await page.getByLabel("Provider").click();
+  await page.getByRole("option", { name: "Offline" }).click();
+  await expect(page.getByLabel("Provider")).toContainText("Offline");
+}
+
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
 });
-test('example brief becomes a complete decision memo', async ({ page }) => { await page.getByRole('button',{name:/use an example/i}).click(); await expect(page.getByLabel('Decision brief')).toHaveValue(/12-person design studio/); await page.getByRole('button',{name:/convene council/i}).click(); await expect(page.getByText('Council in session')).toBeVisible(); await expect(page.getByText('Chair’s call')).toBeVisible({timeout:5000}); await expect(page.getByTestId('agent-optimist')).toBeVisible(); await expect(page.getByTestId('agent-analyst')).toBeVisible(); await expect(page.getByTestId('agent-skeptic')).toBeVisible(); await expect(page.getByText('Next moves')).toBeVisible(); });
+test('example brief becomes a complete decision memo', async ({ page }) => { await useOfflineCouncil(page); await page.getByRole('button',{name:/use an example/i}).click(); await expect(page.getByLabel('Decision brief')).toHaveValue(/12-person design studio/); await page.getByRole('button',{name:/convene council/i}).click(); await expect(page.getByText('Council in session')).toBeVisible(); await expect(page.getByText('Chair’s call')).toBeVisible({timeout:5000}); await expect(page.getByTestId('agent-optimist')).toBeVisible(); await expect(page.getByTestId('agent-analyst')).toBeVisible(); await expect(page.getByTestId('agent-skeptic')).toBeVisible(); await expect(page.getByText('Next moves')).toBeVisible(); });
 test('invalid brief is rejected accessibly', async ({ page }) => { await page.getByLabel('Decision brief').fill('Too short'); await page.getByRole('button',{name:/convene council/i}).click(); await expect(page.getByRole('alert')).toContainText('at least 20 characters'); await expect(page.getByLabel('Decision brief')).toBeFocused(); });
+
+test("BYOK providers ask for a key instead of running", async ({ page }) => {
+  await page.getByLabel("Provider").click();
+  await page.getByRole("option", { name: "Anthropic" }).click();
+  await expect(page.getByLabel(/API key/)).toBeVisible();
+  await expect(page.getByLabel("Model")).toBeVisible();
+  await page
+    .getByLabel("Decision brief")
+    .fill("Should we launch this product to five customers next month?");
+  await page.getByRole("button", { name: /convene council/i }).click();
+  await expect(page.getByRole("alert")).toContainText(
+    "Add your Anthropic API key",
+  );
+  await expect(page.getByLabel(/API key/)).toBeFocused();
+});
+
 test("a completed memo survives reload and can be cleared", async ({ page }) => {
+  await useOfflineCouncil(page);
   await page
     .getByLabel("Decision brief")
     .fill("Should our studio pilot a paid research product with five customers?");
@@ -20,6 +44,7 @@ test("a completed memo survives reload and can be cleared", async ({ page }) => 
 });
 
 test("keyboard submission runs without horizontal overflow", async ({ page }) => {
+  await useOfflineCouncil(page);
   await page
     .getByLabel("Decision brief")
     .fill("Should we test this decision workflow with our leadership team?");
@@ -42,18 +67,53 @@ test("the API rejects an underspecified brief", async ({ request }) => {
   });
 });
 
-test("settings configure OpenRouter without persisting the key", async ({ page }) => {
-  await page.getByRole("button", { name: "Settings" }).click();
-  await page.getByLabel("Provider").click();
-  await page.getByRole("option", { name: "OpenRouter" }).click();
-  await expect(page.getByLabel("Model")).toBeVisible();
-  await page.getByLabel(/API key/).fill("temporary-test-secret");
-  await page.getByRole("button", { name: "Use this connection" }).click();
-  await expect(page.getByRole("heading", { name: /Bring the decision/ })).toBeVisible();
+test("the API serves popular models without a key", async ({ request }) => {
+  const response = await request.get("/api/models?provider=anthropic");
 
-  const storage = await page.evaluate(() => localStorage.getItem("conclave:connection"));
-  expect(storage).not.toContain("temporary-test-secret");
-  expect(storage).toContain("nvidia/nemotron-3-super-120b-a12b:free");
+  expect(response.status()).toBe(200);
+  const body = await response.json();
+  expect(body.models.length).toBeGreaterThan(0);
+  expect(body.models.map((model: { id: string }) => model.id)).toContain(
+    "claude-sonnet-4-5",
+  );
+});
+
+test("settings switch models with a dropdown and never persist keys", async ({ page }) => {
+  await page.getByRole("button", { name: "Settings" }).click();
+  await expect(
+    page.getByRole("heading", { name: /Pick a model/ }),
+  ).toBeVisible();
+  await page.getByLabel("Popular model").click();
+  await page.getByRole("option", { name: "Claude Opus 4.5" }).click();
+
+  const storage = await page.evaluate(() =>
+    localStorage.getItem("conclave:connection"),
+  );
+  expect(storage).toContain("claude-opus-4-5");
+  expect(storage).not.toContain("apiKey");
+  await expect(page.getByText(/needs your API key/)).toBeVisible();
+
+  await page.getByLabel("Popular model").click();
+  await page
+    .getByRole("option", { name: /NVIDIA Nemotron 3 Super/ })
+    .first()
+    .click();
+  const restored = await page.evaluate(() =>
+    localStorage.getItem("conclave:connection"),
+  );
+  expect(restored).toContain("nvidia/nemotron-3-super-120b-a12b:free");
+});
+
+test("the guide explains the council, BYOK, and privacy", async ({ page }) => {
+  await page.getByRole("button", { name: "Guide" }).first().click();
+  await expect(
+    page.getByRole("heading", { name: /How Conclave thinks/ }),
+  ).toBeVisible();
+  await expect(page.getByText("Mara")).toBeVisible();
+  await expect(page.getByText("Ivo")).toBeVisible();
+  await expect(page.getByText("Sana")).toBeVisible();
+  await expect(page.getByText(/Kimi \(Moonshot\)/)).toBeVisible();
+  await expect(page.getByText(/never written to storage/)).toBeVisible();
 });
 
 test("local providers reject non-loopback endpoints", async ({ request }) => {
@@ -76,6 +136,7 @@ test("local providers reject non-loopback endpoints", async ({ request }) => {
 });
 
 test("completed decisions appear in the local library and export Markdown", async ({ page }) => {
+  await useOfflineCouncil(page);
   await page.getByRole("button", { name: /use an example/i }).click();
   await page.getByRole("button", { name: /convene council/i }).click();
   await expect(page.getByText("Chair’s call")).toBeVisible({ timeout: 5000 });
