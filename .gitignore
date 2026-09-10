@@ -2,6 +2,7 @@ node_modules/
 dist/
 .env*
 !.env.example
+.corepack/
 playwright-report/
 test-results/
 *.tsbuildinfo
