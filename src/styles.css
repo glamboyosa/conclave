@@ -21,6 +21,13 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
+  --color-paper: var(--paper);
+  --color-ink: var(--ink);
+  --color-lime: #d5e963;
+  --color-faint: #8a8e87;
+  --color-body: #5c635d;
+  --font-mono: "DM Mono", ui-monospace, monospace;
+  --font-serif: "Newsreader", serif;
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
 }
@@ -145,52 +152,14 @@ select {
   background: var(--paper);
   box-shadow: 0 1px 2px rgba(31, 40, 34, 0.04), 0 14px 40px rgba(31, 40, 34, 0.06);
 }
-.settings-card [data-slot="card-header"] {
-  position: relative;
-  padding-right: 170px;
-}
-.settings-card [data-slot="badge"] {
-  position: absolute;
-  top: 0;
-  right: 24px;
-}
 .settings-control {
   width: 100%;
   min-height: 44px;
   background: white;
   font-size: 16px;
 }
-.model-input-wrap {
-  position: relative;
-}
-.model-spinner {
-  position: absolute;
-  top: 14px;
-  right: 13px;
-  width: 16px;
-  height: 16px;
-  color: var(--muted);
-  animation: spin 900ms linear infinite;
-}
 @keyframes spin {
   to { transform: rotate(360deg); }
-}
-.secret-input {
-  position: relative;
-}
-.secret-input svg {
-  position: absolute;
-  left: 13px;
-  top: 14px;
-  width: 16px;
-  height: 16px;
-  color: var(--muted);
-}
-.secret-input input {
-  padding-left: 39px;
-}
-.settings-actions {
-  justify-content: flex-end;
 }
 button {
   cursor: pointer;
@@ -926,7 +895,7 @@ details ul {
     bottom: 12px;
     left: 12px;
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     padding: 5px;
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 13px;
@@ -977,14 +946,6 @@ details ul {
   }
   .settings-card {
     --card-spacing: 18px;
-  }
-  .settings-card [data-slot="card-header"] {
-    padding-right: 18px;
-  }
-  .settings-card [data-slot="badge"] {
-    position: static;
-    width: fit-content;
-    margin-top: 8px;
   }
   .composer-footer {
     padding-left: 8px;

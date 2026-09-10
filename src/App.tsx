@@ -3,13 +3,13 @@ import { motion, useReducedMotion } from "motion/react";
 import { z } from "zod";
 import {
   ArrowUp,
+  BookOpen,
   Check,
   ChevronRight,
   CircleAlert,
   Command,
   Download,
   FileText,
-  KeyRound,
   LoaderCircle,
   Plus,
   RotateCcw,
@@ -25,6 +25,7 @@ import {
   SelectContent,
   SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "./components/ui/select";
@@ -32,26 +33,27 @@ import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "./components/ui/card";
-import { Badge } from "./components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "./components/ui/alert";
 import {
   Field,
   FieldDescription,
-  FieldError,
-  FieldGroup,
   FieldLabel,
 } from "./components/ui/field";
+import { GuideView } from "./Guide";
 import {
   defaultConnection,
-  needsEndpoint,
+  keyOptional,
   needsApiKey,
-  providerPresets,
+  parseProvider,
+  pickerProviders,
+  popularModels,
+  providerMeta,
+  providerName,
+  type CatalogModel,
   type ModelConnection,
-  type ProviderId,
 } from "./providers";
 import {
   decisionMarkdown,
@@ -87,41 +89,12 @@ type Phase = "idle" | "running" | "done" | "error";
 
 type SavedRun = { phase: Phase; brief: string; result: RunResult | null };
 
-type View = "decision" | "library" | "settings";
+type View = "decision" | "library" | "settings" | "guide";
 
-const providerNames: Record<ProviderId, string> = {
-  demo: "Offline",
-  openrouter: "OpenRouter",
-  nvidia: "NVIDIA NIM",
-  openai: "OpenAI",
-  ollama: "Ollama",
-  lmstudio: "LM Studio",
-  custom: "OpenAI-compatible",
-};
-
-type CatalogModel = { id: string; name: string; free: boolean };
-
-const modelCatalogSchema = z.object({
+const catalogResponseSchema = z.object({
   models: z.array(z.object({ id: z.string(), name: z.string(), free: z.boolean() })),
+  source: z.enum(["live", "fallback"]).catch("fallback"),
 });
-
-function parseProvider(value: string): ProviderId {
-  switch (value) {
-    case "openrouter":
-    case "nvidia":
-    case "openai":
-    case "ollama":
-    case "lmstudio":
-    case "custom":
-      return value;
-    default:
-      return "demo";
-  }
-}
-
-function providerLabel(provider: ProviderId) {
-  return providerNames[provider];
-}
 
 function loadSavedRun(): SavedRun {
   const saved = localStorage.getItem("conclave:lastRun");
@@ -140,6 +113,25 @@ function loadSavedRun(): SavedRun {
     localStorage.removeItem("conclave:lastRun");
 
     return { phase: "idle", brief: "", result: null };
+  }
+}
+
+function loadSavedConnection(): ModelConnection {
+  const saved = localStorage.getItem("conclave:connection");
+
+  if (!saved) return defaultConnection;
+
+  try {
+    const parsed = JSON.parse(saved);
+
+    return {
+      ...defaultConnection,
+      ...parsed,
+      provider: parseProvider(parsed.provider ?? ""),
+      apiKey: "",
+    };
+  } catch {
+    return defaultConnection;
   }
 }
 
@@ -191,45 +183,125 @@ export default function App() {
   const [error, setError] = useState("");
   const [view, setView] = useState<View>("decision");
   const [library, setLibrary] = useState<DecisionRecord[]>(loadDecisionLibrary);
-  const [models, setModels] = useState<CatalogModel[]>([]);
-  const [modelStatus, setModelStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [connection, setConnection] = useState<ModelConnection>(loadSavedConnection);
+  const [keys, setKeys] = useState<Record<string, string>>({});
 
-  const [connection, setConnection] = useState<ModelConnection>(() => {
-    const saved = localStorage.getItem("conclave:connection");
+  const [models, setModels] = useState<CatalogModel[]>(() =>
+    popularModels(connection.provider),
+  );
 
-    if (!saved) return defaultConnection;
+  const [modelSource, setModelSource] = useState<"live" | "fallback">("fallback");
 
-    try {
-      return { ...defaultConnection, ...JSON.parse(saved), apiKey: "" };
-    } catch {
-      return defaultConnection;
-    }
-  });
+  const [modelStatus, setModelStatus] = useState<"idle" | "loading" | "ready">(() =>
+    connection.provider === "demo" ? "idle" : "loading",
+  );
+
+  const [debouncedKey, setDebouncedKey] = useState("");
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const keyRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (connection.provider !== "openrouter" || models.length) return;
+    const timer = setTimeout(() => setDebouncedKey(connection.apiKey.trim()), 500);
+
+    return () => clearTimeout(timer);
+  }, [connection.apiKey]);
+
+  useEffect(() => {
+    if (connection.provider === "demo") return;
 
     const controller = new AbortController();
-    setModelStatus("loading");
-    fetch("/api/models?provider=openrouter", { signal: controller.signal })
+
+    fetch(`/api/models?provider=${connection.provider}`, {
+      signal: controller.signal,
+      headers: debouncedKey ? { "x-conclave-key": debouncedKey } : undefined,
+    })
       .then(async (response) => {
         if (!response.ok) throw new Error("Catalog unavailable");
 
-        return modelCatalogSchema.parse(await response.json());
+        return catalogResponseSchema.parse(await response.json());
       })
-      .then(({ models: nextModels }) => {
-        setModels(nextModels);
+      .then(({ models: nextModels, source }) => {
+        setModels(nextModels.length ? nextModels : popularModels(connection.provider));
+        setModelSource(nextModels.length ? source : "fallback");
         setModelStatus("ready");
       })
       .catch((cause: unknown) => {
         if (cause instanceof DOMException && cause.name === "AbortError") return;
-        setModelStatus("error");
+        setModels(popularModels(connection.provider));
+        setModelSource("fallback");
+        setModelStatus("ready");
       });
 
     return () => controller.abort();
-  }, [connection.provider, models.length]);
+  }, [connection.provider, debouncedKey]);
+
+  function persistConnection(next: ModelConnection) {
+    localStorage.setItem(
+      "conclave:connection",
+      JSON.stringify({
+        provider: next.provider,
+        model: next.model,
+        baseURL: next.baseURL,
+      }),
+    );
+  }
+
+  function chooseProvider(provider: ModelConnection["provider"]) {
+    const next: ModelConnection = {
+      provider,
+      model: providerMeta[provider].defaultModel,
+      baseURL: "",
+      apiKey: keys[provider] ?? "",
+    };
+
+    setConnection(next);
+    persistConnection(next);
+    setError("");
+
+    if (provider === "demo") {
+      setModels([]);
+      setModelStatus("idle");
+    } else {
+      setModelStatus("loading");
+    }
+  }
+
+  function chooseModel(model: string) {
+    const next = { ...connection, model };
+
+    setConnection(next);
+    persistConnection(next);
+  }
+
+  function changeKey(value: string) {
+    setConnection({ ...connection, apiKey: value });
+    setKeys((current) => ({ ...current, [connection.provider]: value }));
+  }
+
+  function applyPopular(value: string) {
+    const [providerId, ...rest] = value.split("|");
+    const provider = parseProvider(providerId ?? "");
+    const model = rest.join("|") || providerMeta[provider].defaultModel;
+
+    const next: ModelConnection = {
+      provider,
+      model,
+      baseURL: "",
+      apiKey: keys[provider] ?? "",
+    };
+
+    setConnection(next);
+    persistConnection(next);
+    setError("");
+
+    if (provider === "demo") {
+      setModels([]);
+      setModelStatus("idle");
+    } else {
+      setModelStatus("loading");
+    }
+  }
 
   async function runCouncil() {
     if (brief.trim().length < 20) {
@@ -240,8 +312,8 @@ export default function App() {
     }
 
     if (needsApiKey(connection.provider) && !connection.apiKey.trim()) {
-      setError("Add your API key before running this hosted model.");
-      setView("settings");
+      setError(`Add your ${providerName(connection.provider)} API key in the model picker.`);
+      keyRef.current?.focus();
 
       return;
     }
@@ -301,42 +373,6 @@ export default function App() {
     URL.revokeObjectURL(url);
   }
 
-  function chooseProvider(provider: ProviderId) {
-    setConnection({ ...providerPresets[provider], apiKey: "" });
-  }
-
-  function saveConnection(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    if (connection.provider !== "demo" && !connection.model.trim()) {
-      setError("Enter the model ID exposed by this provider.");
-
-      return;
-    }
-
-    if (needsEndpoint(connection.provider) && !connection.baseURL.trim()) {
-      setError("Enter an OpenAI-compatible API endpoint.");
-
-      return;
-    }
-
-    if (needsApiKey(connection.provider) && !connection.apiKey.trim()) {
-      setError("Enter an API key for this provider.");
-
-      return;
-    }
-
-    const safeConnection = {
-      provider: connection.provider,
-      model: connection.model,
-      baseURL: connection.baseURL,
-    };
-
-    localStorage.setItem("conclave:connection", JSON.stringify(safeConnection));
-    setError("");
-    setView("decision");
-  }
-
   function reset() {
     setBrief("");
     setResult(null);
@@ -347,9 +383,63 @@ export default function App() {
   }
 
   const chars = brief.length;
+  const meta = providerMeta[connection.provider];
 
   const modelLabel = (modelId: string) =>
     models.find((model) => model.id === modelId)?.name ?? modelId;
+
+  const settingsValue = `${connection.provider}|${connection.model}`;
+
+  const settingsLabel = (value: string) => {
+    const [providerId, ...rest] = value.split("|");
+    const provider = parseProvider(providerId ?? "");
+    const modelId = rest.join("|");
+
+    if (provider === "demo") return "Offline council";
+
+    const popular = popularModels(provider).find((model) => model.id === modelId);
+
+    return popular
+      ? `${providerName(provider)} · ${popular.name}`
+      : `${providerName(provider)} · ${modelId}`;
+  };
+
+  const noteLines: string[] = [];
+
+  if (connection.provider === "demo") {
+    noteLines.push(
+      "No network requests — the offline council is deterministic and needs no account or key.",
+    );
+  } else {
+    if (keyOptional(connection.provider)) {
+      noteLines.push(
+        connection.apiKey
+          ? "Your OpenRouter key is held in this tab’s memory only — never saved."
+          : "Runs free on Conclave’s shared OpenRouter key — no key needed. Add your own key for paid models.",
+      );
+    }
+
+    if (needsApiKey(connection.provider)) {
+      noteLines.push(
+        connection.apiKey
+          ? "Key held in this tab’s memory only — sent to the local Conclave server at run time, never saved."
+          : `Bring your own ${providerName(connection.provider)} key — it stays in this tab’s memory and is never saved.`,
+      );
+    }
+
+    if (modelStatus !== "loading" && modelSource === "fallback") {
+      noteLines.push(
+        needsApiKey(connection.provider) && !connection.apiKey
+          ? `Showing popular ${providerName(connection.provider)} models — add your key to load the full live catalog.`
+          : `The live ${providerName(connection.provider)} catalog is unavailable — showing popular models.`,
+      );
+    }
+  }
+
+  const showKeyLink =
+    meta.keyUrl &&
+    !connection.apiKey &&
+    (needsApiKey(connection.provider) || keyOptional(connection.provider));
 
   return (
     <div className="shell">
@@ -369,6 +459,20 @@ export default function App() {
             Decision room
           </button>
           <button
+            className={`nav-item ${view === "library" ? "active" : ""}`}
+            onClick={() => setView("library")}
+          >
+            <FileText size={16} />
+            Library<span>{library.length}</span>
+          </button>
+          <button
+            className={`nav-item ${view === "guide" ? "active" : ""}`}
+            onClick={() => setView("guide")}
+          >
+            <BookOpen size={16} />
+            Guide
+          </button>
+          <button
             className={`nav-item ${view === "settings" ? "active" : ""}`}
             onClick={() => {
               setError("");
@@ -377,13 +481,6 @@ export default function App() {
           >
             <Settings size={16} />
             Settings
-          </button>
-          <button
-            className={`nav-item ${view === "library" ? "active" : ""}`}
-            onClick={() => setView("library")}
-          >
-            <FileText size={16} />
-            Library<span>{library.length}</span>
           </button>
         </nav>
         <div className="sidebar-bottom">
@@ -408,7 +505,11 @@ export default function App() {
           </div>
           <div className="status">
             <span className="status-dot" />
-            {providerNames[connection.provider]} · 3 agents
+            <span className="min-w-0 truncate">
+              {connection.provider === "demo"
+                ? "Offline · 3 agents"
+                : `${providerName(connection.provider)} · ${modelLabel(connection.model)}`}
+            </span>
           </div>
           <button
             className="reset-icon"
@@ -432,6 +533,12 @@ export default function App() {
             <FileText size={16} /> Library
           </button>
           <button
+            className={view === "guide" ? "active" : ""}
+            onClick={() => setView("guide")}
+          >
+            <BookOpen size={16} /> Guide
+          </button>
+          <button
             className={view === "settings" ? "active" : ""}
             onClick={() => setView("settings")}
           >
@@ -439,7 +546,9 @@ export default function App() {
           </button>
         </nav>
         <div className="workspace">
-          {view === "library" ? (
+          {view === "guide" ? (
+            <GuideView />
+          ) : view === "library" ? (
             <section className="library-view">
               <div className="eyebrow">
                 <span>Local only</span> Decision library
@@ -480,146 +589,70 @@ export default function App() {
           ) : view === "settings" ? (
             <section className="settings-view">
               <div className="eyebrow">
-                <span>Settings</span> Model connection
+                <span>Settings</span> Model
               </div>
-              <h1>Choose who powers the council.</h1>
+              <h1>Pick a model. That’s all.</h1>
               <p className="lede">
-                Use the offline council, a hosted model, or a local server.
-                Provider keys live in memory and disappear when you close this tab.
+                A short list of popular models that handle the council’s
+                structured format. The full live catalog — and your API key —
+                live in the model picker on the decision page.
               </p>
               <Card className="settings-card">
                 <CardHeader>
-                  <CardTitle>Model connection</CardTitle>
+                  <CardTitle>Popular models</CardTitle>
                   <CardDescription>
-                    Choose a provider, then select the model used by every council member.
+                    One dropdown. No typing, no endpoints.
                   </CardDescription>
-                  <Badge variant="secondary">
-                    {needsApiKey(connection.provider) && !connection.apiKey
-                      ? "API key required"
-                      : "Ready for this tab"}
-                  </Badge>
                 </CardHeader>
-                <form onSubmit={saveConnection}>
-                  <CardContent>
-                    <FieldGroup>
-                    <Field>
-                      <FieldLabel htmlFor="provider">Provider</FieldLabel>
-                      <Select
-                        value={connection.provider}
-                        itemToStringLabel={providerLabel}
-                        onValueChange={(value) => chooseProvider(parseProvider(value ?? ""))}
-                      >
-                        <SelectTrigger id="provider" className="settings-control" aria-label="Provider">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent align="start">
-                          <SelectGroup>
-                            {Object.entries(providerNames).map(([id, name]) => (
-                              <SelectItem value={id} key={id}>{name}</SelectItem>
-                            ))}
-                          </SelectGroup>
-                        </SelectContent>
-                      </Select>
-                      <FieldDescription>
-                        OpenRouter provides one catalog for Anthropic, OpenAI, DeepSeek, Kimi, NVIDIA, and more.
-                      </FieldDescription>
-                    </Field>
-                {connection.provider !== "demo" && (
-                  <>
-                    <Field>
-                      <FieldLabel htmlFor="model">Model</FieldLabel>
-                      {connection.provider === "openrouter" && models.length ? (
-                        <Select value={connection.model} itemToStringLabel={modelLabel} onValueChange={(model) => setConnection({ ...connection, model: model ?? "" })}>
-                          <SelectTrigger id="model" className="settings-control" aria-label="Model">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent align="start">
-                            <SelectGroup>
-                              {models.map((model) => (
-                                <SelectItem value={model.id} key={model.id}>
+                <CardContent>
+                  <Field>
+                    <FieldLabel htmlFor="popular-model">Model</FieldLabel>
+                    <Select
+                      value={settingsValue}
+                      itemToStringLabel={settingsLabel}
+                      onValueChange={(value) => value && applyPopular(value)}
+                    >
+                      <SelectTrigger id="popular-model" className="settings-control" aria-label="Popular model">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent align="start">
+                        {pickerProviders.map((id) => (
+                          <SelectGroup key={id}>
+                            <SelectLabel>{providerName(id)}</SelectLabel>
+                            {id === "demo" ? (
+                              <SelectItem value={`demo|${providerMeta.demo.defaultModel}`}>
+                                Offline council · Free
+                              </SelectItem>
+                            ) : (
+                              popularModels(id).map((model) => (
+                                <SelectItem value={`${id}|${model.id}`} key={model.id}>
                                   {model.name}{model.free ? " · Free" : ""}
                                 </SelectItem>
-                              ))}
-                            </SelectGroup>
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <div className="model-input-wrap">
-                          <Input id="model" className="settings-control" value={connection.model} onChange={(event) => setConnection({ ...connection, model: event.target.value })} placeholder="provider/model-name" />
-                          {modelStatus === "loading" && <LoaderCircle aria-hidden="true" className="model-spinner" />}
-                        </div>
-                      )}
-                      <FieldDescription>
-                        {modelStatus === "error" && connection.provider === "openrouter"
-                          ? "The catalog is unavailable. You can still enter an OpenRouter model ID."
-                          : "Only models that support the council's structured response format are listed."}
-                      </FieldDescription>
-                    </Field>
-                    {needsEndpoint(connection.provider) && <Field>
-                      <FieldLabel htmlFor="endpoint">API endpoint</FieldLabel>
-                      <Input
-                        id="endpoint"
-                        type="url"
-                        className="settings-control"
-                        value={connection.baseURL}
-                        onChange={(event) =>
-                          setConnection({
-                            ...connection,
-                            baseURL: event.target.value,
-                          })
-                        }
-                        inputMode="url"
-                        placeholder="https://api.example.com/v1"
-                      />
-                    </Field>}
-                    <Field>
-                      <FieldLabel htmlFor="api-key">API key {needsApiKey(connection.provider) ? "" : "(optional)"}</FieldLabel>
-                      <div className="secret-input">
-                        <KeyRound aria-hidden="true" />
-                        <Input
-                          id="api-key"
-                          type="password"
-                          value={connection.apiKey}
-                          onChange={(event) =>
-                            setConnection({
-                              ...connection,
-                              apiKey: event.target.value,
-                            })
-                          }
-                          autoComplete="off"
-                          data-1p-ignore
-                          data-lpignore="true"
-                          spellCheck={false}
-                          placeholder="Held for this tab only"
-                        />
-                      </div>
-                      <FieldDescription>
-                        Held in this tab’s memory. Sent to the local Conclave server only when you run the council; never saved by Conclave.
-                      </FieldDescription>
-                    </Field>
-                  </>
-                )}
-                {connection.provider === "openrouter" && (
-                  <Alert>
-                    <ShieldCheck aria-hidden="true" />
-                    <AlertTitle>Private key handling</AlertTitle>
-                    <AlertDescription>Nemotron 3 Super is the free default. Requests go directly through the local Conclave server to OpenRouter.</AlertDescription>
-                  </Alert>
-                )}
-                {connection.provider === "demo" && (
-                  <Alert>
-                    <ShieldCheck aria-hidden="true" />
-                    <AlertTitle>No network requests</AlertTitle>
-                    <AlertDescription>The offline council is deterministic and needs no account or API key.</AlertDescription>
-                  </Alert>
-                )}
-                {error && <FieldError>{error}</FieldError>}
-                    </FieldGroup>
-                  </CardContent>
-                  <CardFooter className="settings-actions">
-                    <Button type="submit">Use this connection</Button>
-                  </CardFooter>
-                </form>
+                              ))
+                            )}
+                          </SelectGroup>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FieldDescription>
+                      {connection.provider === "demo"
+                        ? "The offline council is deterministic — no key, no network."
+                        : needsApiKey(connection.provider) && !connection.apiKey
+                          ? `${providerName(connection.provider)} needs your API key — add it in the model picker on the decision page.`
+                          : "Provider, live catalog, and keys are managed in the model picker on the decision page."}
+                    </FieldDescription>
+                  </Field>
+                  {needsApiKey(connection.provider) && !connection.apiKey && (
+                    <Alert>
+                      <ShieldCheck aria-hidden="true" />
+                      <AlertTitle>Key needed for {providerName(connection.provider)}</AlertTitle>
+                      <AlertDescription>
+                        Add it in the model picker on the decision page. It stays
+                        in this tab’s memory and is never saved.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                </CardContent>
               </Card>
             </section>
           ) : phase === "idle" || phase === "error" ? (
@@ -636,6 +669,110 @@ export default function App() {
                 A private council will argue the upside, interrogate the
                 evidence, and find the risk you are not naming.
               </p>
+              <div className="mb-2 flex items-end gap-2.5 rounded-[18px] bg-paper p-2.5 shadow-[0_1px_1px_rgba(22,32,25,0.03),0_6px_20px_rgba(31,40,34,0.05),inset_0_0_0_1px_rgba(28,37,31,0.06)] max-[850px]:flex-col max-[850px]:items-stretch">
+                <div className="grid min-w-[148px] gap-[5px] max-[850px]:min-w-0">
+                  <span className="flex items-center pl-[3px] font-mono text-[9px] uppercase tracking-[0.09em] text-faint">
+                    Provider
+                  </span>
+                  <Select
+                    value={connection.provider}
+                    itemToStringLabel={(value) => providerName(parseProvider(value))}
+                    onValueChange={(value) => value && chooseProvider(parseProvider(value))}
+                  >
+                    <SelectTrigger
+                      className="min-h-[42px] w-full rounded-lg bg-white text-[13px]"
+                      aria-label="Provider"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent align="start">
+                      <SelectGroup>
+                        {pickerProviders.map((id) => (
+                          <SelectItem value={id} key={id}>
+                            {providerName(id)}{id === "openrouter" ? " · Free default" : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {connection.provider !== "demo" && (
+                  <div className="grid min-w-0 flex-1 gap-[5px]">
+                    <span className="flex items-center pl-[3px] font-mono text-[9px] uppercase tracking-[0.09em] text-faint">
+                      Model
+                      {modelStatus === "loading" && (
+                        <LoaderCircle
+                          aria-hidden="true"
+                          className="ml-[5px] size-[11px] animate-spin text-faint"
+                        />
+                      )}
+                    </span>
+                    <Select
+                      value={connection.model}
+                      itemToStringLabel={modelLabel}
+                      onValueChange={(value) => value && chooseModel(value)}
+                    >
+                      <SelectTrigger
+                        className="min-h-[42px] w-full rounded-lg bg-white text-[13px]"
+                        aria-label="Model"
+                        disabled={!models.length}
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent align="start">
+                        <SelectGroup>
+                          {models.map((model) => (
+                            <SelectItem value={model.id} key={model.id}>
+                              {model.name}{model.free ? " · Free" : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                {(needsApiKey(connection.provider) || keyOptional(connection.provider)) && (
+                  <div className="grid min-w-0 flex-1 gap-[5px]">
+                    <label
+                      className="flex items-center pl-[3px] font-mono text-[9px] uppercase tracking-[0.09em] text-faint"
+                      htmlFor="byok-key"
+                    >
+                      {providerName(connection.provider)} API key
+                      {keyOptional(connection.provider) ? " (optional)" : ""}
+                    </label>
+                    <Input
+                      ref={keyRef}
+                      id="byok-key"
+                      className="min-h-[42px] w-full rounded-lg bg-white pr-2.5 text-[13px]"
+                      type="password"
+                      value={connection.apiKey}
+                      onChange={(event) => changeKey(event.target.value)}
+                      autoComplete="off"
+                      data-1p-ignore
+                      data-lpignore="true"
+                      spellCheck={false}
+                      placeholder="Held for this tab only"
+                    />
+                  </div>
+                )}
+              </div>
+              <div className="mx-[2px] mb-[18px] grid gap-[3px]">
+                {noteLines.map((line) => (
+                  <p className="m-0 text-[11px] leading-[1.5] text-pretty text-faint" key={line}>
+                    {line}
+                  </p>
+                ))}
+                {showKeyLink && (
+                  <a
+                    className="flex min-h-6 w-fit items-center gap-[1px] text-[11px] font-semibold text-primary no-underline underline-offset-[3px] hover:underline"
+                    href={meta.keyUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Get a {providerName(connection.provider)} key <ChevronRight size={12} />
+                  </a>
+                )}
+              </div>
               <div className={`composer ${error ? "has-error" : ""}`}>
                 <textarea
                   ref={textareaRef}
@@ -683,7 +820,7 @@ export default function App() {
               </div>
             </section>
           ) : null}
-          {phase === "running" && (
+          {view === "decision" && phase === "running" && (
             <section className="running" aria-live="polite">
               <div className="orbit">
                 <span>M</span>
@@ -715,7 +852,7 @@ export default function App() {
               </div>
             </section>
           )}
-          {phase === "done" && result && (
+          {view === "decision" && phase === "done" && result && (
             <section className="results">
               <div className="result-top">
                 <div>
