@@ -16,6 +16,18 @@ const record = {
 
 beforeEach(() => {
   vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe = vi.fn();
+      disconnect = vi.fn();
+    },
+  );
+  Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+    configurable: true,
+    value: vi.fn(),
+  });
+  vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({ matches: false }));
+  vi.stubGlobal(
     "IntersectionObserver",
     class {
       observe = vi.fn();
@@ -59,6 +71,7 @@ it("preserves a failed message and saves the conversation only after a successfu
       controls={null}
       onSave={save}
       onRevise={vi.fn()}
+      onDecision={vi.fn()}
     />,
   );
   await user.click(
@@ -111,6 +124,7 @@ it("saves offline notes without a model request and enables revision after conte
     controls: null,
     onSave: save,
     onRevise: revise,
+    onDecision: vi.fn(),
   };
 
   const { rerender } = render(<DecisionDiscussion {...props} />);

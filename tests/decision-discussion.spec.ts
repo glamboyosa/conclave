@@ -202,3 +202,95 @@ test("pending replies cycle downward without shifting layout and respect reduced
   ).toBeVisible();
   await expect(pending).toHaveCount(0);
 });
+
+test("Markdown replies stay readable and navigation controls preserve the reader's position", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const markdown = [
+    "## Contractor plan",
+    "**Reserve named capacity.**",
+    "1. Confirm availability\n2. Agree a spending cap",
+    "| Option | Cost |\n| --- | --- |\n| Contractor | £5,000 |",
+    `\`\`\`text\n${"bounded ".repeat(90)}\n\`\`\``,
+    ...Array.from(
+      { length: 20 },
+      (_, index) =>
+        `Consideration ${index + 1}: Keep the initial engagement small enough to stop if delivery or demand does not justify extending it.`,
+    ),
+  ].join("\n\n");
+  let complete: () => void = () => {};
+  const waiting = new Promise<void>((resolve) => {
+    complete = resolve;
+  });
+  let calls = 0;
+  await page.route("**/api/discuss", async (route) => {
+    calls++;
+    if (calls === 1) await waiting;
+    await route.fulfill({
+      json: {
+        text:
+          calls === 1
+            ? markdown
+            : `${markdown}\n\nThe lower budget changes the scope.`,
+      },
+    });
+  });
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: "Discuss this decision", exact: true })
+    .click();
+  const atLatest = () =>
+    page.evaluate(() => {
+      const bottom = document
+        .getElementById("discussion-latest")!
+        .getBoundingClientRect().bottom;
+      return bottom >= 0 && bottom <= innerHeight + 1;
+    });
+  await expect.poll(atLatest).toBe(true);
+  await page
+    .getByLabel("Your follow-up")
+    .fill("Compare contractor engagement options.");
+  await page.getByRole("button", { name: "Send follow-up" }).click();
+  await expect(page.locator(".discussion-pending")).toBeVisible();
+  await expect.poll(atLatest).toBe(true);
+  await page.getByRole("button", { name: "Back to decision" }).click();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          document.getElementById("decision-memo")!.getBoundingClientRect().top,
+      ),
+    )
+    .toBeGreaterThanOrEqual(0);
+  await expect(page.locator("#decision-memo")).toBeFocused();
+  complete();
+  await expect(
+    page.getByRole("heading", { name: "Contractor plan" }),
+  ).toBeVisible();
+  expect(await page.evaluate(() => scrollY)).toBeLessThan(150);
+  await expect(page.getByRole("cell", { name: "£5,000" })).toBeVisible();
+  await page.getByRole("button", { name: "Latest reply" }).click();
+  await expect.poll(atLatest).toBe(true);
+  await page
+    .getByLabel("Your follow-up")
+    .fill("What changes with a lower budget?");
+  await page.getByRole("button", { name: "Send follow-up" }).click();
+  await expect(
+    page.getByText("The lower budget changes the scope.", { exact: true }),
+  ).toBeVisible();
+  await expect.poll(atLatest).toBe(true);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  const code = page.locator(".discussion-markdown pre").first();
+  expect(
+    await code.evaluate((element) => element.scrollWidth > element.clientWidth),
+  ).toBe(true);
+  await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "Contractor plan" }).first(),
+  ).toBeVisible();
+});

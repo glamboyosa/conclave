@@ -193,6 +193,7 @@ export default function App() {
   const [completed, setCompleted] = useState<string[]>([]);
   const runId = useRef(0);
 
+  const decisionRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const keyRef = useRef<HTMLInputElement>(null);
 
@@ -641,7 +642,13 @@ export default function App() {
             />
           )}
           {view === "decision" && phase === "done" && result && (
-            <div className="decision-thread">
+            <div
+              className="decision-thread"
+              id="decision-memo"
+              ref={decisionRef}
+              tabIndex={-1}
+              aria-label="Decision memo"
+            >
               {parentRecord && (
                 <Button
                   variant="ghost"
@@ -692,6 +699,17 @@ export default function App() {
                   );
                 }}
                 onRevise={() => activeRecord && void runCouncil(activeRecord)}
+                onDecision={(animate) => {
+                  const reducedMotion = window.matchMedia(
+                    "(prefers-reduced-motion: reduce)",
+                  ).matches;
+
+                  decisionRef.current?.scrollIntoView({
+                    block: "start",
+                    behavior: animate && !reducedMotion ? "smooth" : "instant",
+                  });
+                  decisionRef.current?.focus({ preventScroll: true });
+                }}
               />
             </div>
           )}

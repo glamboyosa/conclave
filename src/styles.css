@@ -1502,6 +1502,7 @@ details ul {
 }
 .discussion-messages {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   margin-bottom: 20px;
 }
@@ -1514,7 +1515,7 @@ details ul {
   background: var(--paper);
   border: 1px solid var(--border);
 }
-.discussion-message strong {
+.discussion-message > strong {
   font-size: 12px;
   color: var(--muted);
 }
@@ -1522,7 +1523,7 @@ details ul {
   margin-top: 8px;
   font-size: 14px;
   line-height: 1.8;
-  white-space: pre-wrap;
+  white-space: normal;
 }
 .discussion-composer textarea {
   resize: vertical;
@@ -1574,4 +1575,115 @@ details ul {
   .discussion-pending-message:nth-of-type(2) {
     opacity: 1;
   }
+}
+
+.decision-thread {
+  padding-bottom: 64px;
+  scroll-margin-top: 20px;
+}
+.discussion-navigation {
+  position: fixed;
+  right: 24px;
+  bottom: 20px;
+  z-index: 20;
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--paper);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 8%);
+}
+.discussion-markdown {
+  font-size: 14px;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+.discussion-markdown > * + * {
+  margin-top: 12px;
+}
+.discussion-markdown h1,
+.discussion-markdown h2,
+.discussion-markdown h3,
+.discussion-markdown h4 {
+  font-size: 16px;
+  line-height: 1.5;
+}
+.discussion-markdown strong {
+  font-weight: 600;
+}
+.discussion-markdown ul,
+.discussion-markdown ol {
+  padding-left: 24px;
+}
+.discussion-markdown ul {
+  list-style: disc;
+}
+.discussion-markdown ol {
+  list-style: decimal;
+}
+.discussion-markdown li + li {
+  margin-top: 6px;
+}
+.discussion-markdown a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.discussion-markdown blockquote {
+  padding-left: 14px;
+  border-left: 2px solid var(--border);
+  color: var(--muted);
+}
+.discussion-markdown code {
+  padding: 2px 4px;
+  border-radius: 4px;
+  background: var(--paper);
+  font-size: 12px;
+}
+.discussion-markdown pre {
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--paper);
+}
+.discussion-markdown pre code {
+  padding: 0;
+  white-space: pre;
+}
+.discussion-table {
+  max-width: 100%;
+  overflow-x: auto;
+}
+.discussion-markdown table {
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.discussion-markdown th,
+.discussion-markdown td {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  text-align: left;
+}
+.discussion-markdown img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+@media (max-width: 600px) {
+  .discussion-navigation {
+    right: 12px;
+    bottom: max(12px, env(safe-area-inset-bottom));
+  }
+  .discussion-navigation button {
+    min-height: 44px;
+    font-size: 12px;
+  }
+}
+
+.discussion-markdown pre:focus-visible,
+.discussion-table:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
 }

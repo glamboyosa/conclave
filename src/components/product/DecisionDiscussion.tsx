@@ -1,5 +1,13 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ArrowUp, MessageSquare, RotateCcw } from "lucide-react";
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { ArrowDown, ArrowUp, MessageSquare, RotateCcw } from "lucide-react";
 import { z } from "zod";
 import type { DiscussionMessage } from "../../engine";
 import type { ModelConnection } from "../../providers";
@@ -7,12 +15,15 @@ import type { DecisionRecord } from "../../storage";
 import { DiscussionPending } from "./DiscussionPending";
 import { Button } from "../ui/button";
 
+const DiscussionMarkdown = lazy(() => import("./DiscussionMarkdown"));
+
 type Props = {
   record: DecisionRecord;
   connection: ModelConnection;
   controls: ReactNode;
   onSave: (messages: DiscussionMessage[]) => void;
   onRevise: () => void;
+  onDecision: (animate: boolean) => void;
 };
 
 export const DecisionDiscussion = ({
@@ -21,6 +32,7 @@ export const DecisionDiscussion = ({
   controls,
   onSave,
   onRevise,
+  onDecision,
 }: Props) => {
   const [open, setOpen] = useState(Boolean(record.discussion?.length));
   const [draft, setDraft] = useState("");
@@ -28,14 +40,63 @@ export const DecisionDiscussion = ({
   const [error, setError] = useState("");
   const controller = useRef<AbortController | null>(null);
   const input = useRef<HTMLTextAreaElement>(null);
+  const bottom = useRef<HTMLDivElement>(null);
+  const body = useRef<HTMLDivElement>(null);
+  const followLatest = useRef(false);
   const messages = record.discussion ?? [];
   const offline = connection.provider === "demo";
   const full = messages.length >= (offline ? 40 : 39);
 
   useEffect(() => () => controller.current?.abort(), []);
 
+  const scrollToLatest = (animate = false) => {
+    const reducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+
+    bottom.current?.scrollIntoView({
+      block: "end",
+      behavior: animate && !reducedMotion ? "smooth" : "instant",
+    });
+  };
+
+  useLayoutEffect(() => {
+    if (open && followLatest.current) scrollToLatest();
+  }, [open, messages.length, pending, error]);
+
+  useEffect(() => {
+    if (!open || !body.current) return;
+
+    let previousScroll = window.scrollY;
+
+    const onScroll = () => {
+      const scrollingUp = window.scrollY < previousScroll;
+      previousScroll = window.scrollY;
+
+      const remaining =
+        document.documentElement.scrollHeight -
+        window.innerHeight -
+        window.scrollY;
+
+      if (scrollingUp && remaining > 128) followLatest.current = false;
+    };
+
+    const observer = new ResizeObserver(() => {
+      if (followLatest.current) scrollToLatest();
+    });
+
+    observer.observe(body.current);
+    window.addEventListener("scroll", onScroll, { passive: true });
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("scroll", onScroll);
+    };
+  }, [open]);
+
   const send = async () => {
     if (pending || !draft.trim() || full) return;
+    followLatest.current = true;
     const content = draft.trim();
     const next: DiscussionMessage[] = [...messages, { role: "user", content }];
     setError("");
@@ -96,16 +157,18 @@ export const DecisionDiscussion = ({
         variant="outline"
         aria-expanded={open}
         onClick={() => {
+          followLatest.current = !open;
           setOpen(!open);
 
-          if (!open) setTimeout(() => input.current?.focus(), 0);
+          if (!open)
+            setTimeout(() => input.current?.focus({ preventScroll: true }), 0);
         }}
       >
         <MessageSquare data-icon="inline-start" />
         {open ? "Hide discussion" : "Discuss this decision"}
       </Button>
       {open && (
-        <div className="discussion-body">
+        <div className="discussion-body" ref={body}>
           <h2>Discuss this decision</h2>
           <p className="discussion-hint">
             Challenge an assumption, add context, or ask a question. The saved
@@ -118,7 +181,9 @@ export const DecisionDiscussion = ({
                 key={index}
               >
                 <strong>{message.role === "user" ? "You" : "Chair"}</strong>
-                <p>{message.content}</p>
+                <Suspense fallback={<p>{message.content}</p>}>
+                  <DiscussionMarkdown content={message.content} />
+                </Suspense>
               </article>
             ))}
           </div>
@@ -191,6 +256,30 @@ export const DecisionDiscussion = ({
             Run the council again with this discussion. The revision is saved
             separately.
           </p>
+          <div id="discussion-latest" ref={bottom} aria-hidden="true" />
+          <nav
+            className="discussion-navigation"
+            aria-label="Decision navigation"
+          >
+            <Button
+              variant="ghost"
+              onClick={(event) => {
+                followLatest.current = false;
+                onDecision(event.detail > 0);
+              }}
+            >
+              <ArrowUp data-icon="inline-start" /> Back to decision
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={(event) => {
+                followLatest.current = true;
+                scrollToLatest(event.detail > 0);
+              }}
+            >
+              <ArrowDown data-icon="inline-start" /> Latest reply
+            </Button>
+          </nav>
         </div>
       )}
     </section>
