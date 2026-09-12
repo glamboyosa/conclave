@@ -1,3 +1,4 @@
+import { Analytics } from "@vercel/analytics/react";
 import { StrictMode } from "react";
 import { preload } from "react-dom";
 import fontUrl from "@fontsource-variable/geist/files/geist-latin-wght-normal.woff2?url";
@@ -10,5 +11,6 @@ preload(fontUrl, { as: "font", type: "font/woff2", crossOrigin: "anonymous" });
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <App />
+    {import.meta.env.PROD && <Analytics />}
   </StrictMode>,
 );

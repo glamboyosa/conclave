@@ -1,4 +1,4 @@
-import { Output, ToolLoopAgent, type LanguageModel } from "ai";
+import { APICallError, Output, ToolLoopAgent, type LanguageModel } from "ai";
 import { z } from "zod";
 import type { AgentFinding, AgentId, RunResult } from "./engine.js";
 
@@ -57,6 +57,26 @@ const roles: Array<{ id: AgentId; instructions: string }> = [
   },
 ];
 
+/** OpenRouter can return transient upstream failures inside a successful HTTP response. */
+const retryOverloadedModel = async <T>(
+  generate: () => Promise<T>,
+): Promise<T> => {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await generate();
+    } catch (cause) {
+      if (
+        attempt >= 2 ||
+        !APICallError.isInstance(cause) ||
+        cause.statusCode !== 200 ||
+        !/overload|temporarily unavailable|busy/i.test(cause.message)
+      )
+        throw cause;
+      await new Promise((resolve) => setTimeout(resolve, 1000 * (attempt + 1)));
+    }
+  }
+};
+
 function findingAgent(model: LanguageModel, instructions: string) {
   return new ToolLoopAgent({
     model,
@@ -81,9 +101,11 @@ export async function runModelCouncil(
     roles.map(async ({ id, instructions }) => {
       const agent = findingAgent(model, instructions);
 
-      const { output } = await agent.generate({
-        prompt: `Analyze this decision brief:\n\n<decision_brief>\n${brief}\n</decision_brief>`,
-      });
+      const { output } = await retryOverloadedModel(() =>
+        agent.generate({
+          prompt: `Analyze this decision brief:\n\n<decision_brief>\n${brief}\n</decision_brief>`,
+        }),
+      );
 
       onProgress?.({ type: "perspective", id });
 
@@ -101,9 +123,11 @@ export async function runModelCouncil(
     timeout: { totalMs: 180_000 },
   });
 
-  const { output: memo } = await chair.generate({
-    prompt: `Decision brief:\n<decision_brief>\n${brief}\n</decision_brief>\n\nIndependent positions:\n<positions>\n${JSON.stringify(findings)}\n</positions>`,
-  });
+  const { output: memo } = await retryOverloadedModel(() =>
+    chair.generate({
+      prompt: `Decision brief:\n<decision_brief>\n${brief}\n</decision_brief>\n\nIndependent positions:\n<positions>\n${JSON.stringify(findings)}\n</positions>`,
+    }),
+  );
 
   return { ...memo, agents: findings, mode: "live" };
 }

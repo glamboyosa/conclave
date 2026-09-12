@@ -1,3 +1,4 @@
+import { createServer } from "node:http";
 import { expect, test } from "@playwright/test";
 import { buildDemoRun } from "../src/engine";
 import { popularModels } from "../src/providers";
@@ -961,4 +962,59 @@ test("the picker reopens on the selected model's tab and provider", async ({
   await expect(
     page.getByRole("option", { name: "Kimi K3", exact: true }),
   ).toBeInViewport();
+});
+
+test("actual provider failures are delivered in the stream with safe details and a run ID", async ({
+  request,
+}) => {
+  const upstream = createServer((_req, res) => {
+    res.writeHead(401, { "Content-Type": "application/json" });
+    res.end(
+      JSON.stringify({
+        error: {
+          message: "Invalid key fake-test-provider-key",
+          type: "authentication_error",
+          code: "invalid_api_key",
+        },
+      }),
+    );
+  });
+  await new Promise<void>((resolve) =>
+    upstream.listen(0, "127.0.0.1", resolve),
+  );
+  const address = upstream.address();
+  if (!address || typeof address === "string")
+    throw new Error("Test server did not start");
+  try {
+    const response = await request.post("/api/run", {
+      headers: { Accept: "application/x-ndjson" },
+      data: {
+        brief:
+          "Should our test team add image uploads before improving text decisions?",
+        connection: {
+          provider: "ollama",
+          model: "test-model",
+          baseURL: `http://127.0.0.1:${address.port}/v1`,
+          apiKey: "fake-test-provider-key",
+        },
+      },
+    });
+    expect(response.status()).toBe(200);
+    const runId = response.headers()["x-conclave-run-id"];
+    expect(runId).toBeTruthy();
+    const body = await response.text();
+    const events = body
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    expect(events.at(-1).type).toBe("error");
+    expect(events.at(-1).error).toContain("Invalid key [redacted]");
+    expect(events.at(-1).error).toContain("assessments");
+    expect(events.at(-1).error).toContain(runId);
+    expect(body).not.toContain("fake-test-provider-key");
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      upstream.close((error) => (error ? reject(error) : resolve())),
+    );
+  }
 });

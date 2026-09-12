@@ -13,6 +13,7 @@
     "src/engine.ts",
     "src/council.ts",
     "src/providers.ts",
-    "server/**/*.ts"
+    "server/**/*.ts",
+    "api/**/*.ts"
   ]
 }

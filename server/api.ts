@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+import { describeRunError } from "./run-error.js";
 import { createModelsDevCatalog } from "./models-dev.js";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createDeepSeek } from "@ai-sdk/deepseek";
@@ -9,7 +11,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { createXai } from "@ai-sdk/xai";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
-import { loadEnv } from "vite";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import type { LanguageModel } from "ai";
 import { z } from "zod";
 import { runModelCouncil } from "../src/council.js";
@@ -278,7 +280,7 @@ async function fetchProviderModels(
 
 export function buildModel(
   connection: z.infer<typeof connectionSchema>,
-  env: Record<string, string>,
+  env: Record<string, string | undefined>,
 ): Exclude<LanguageModel, string> {
   switch (connection.provider) {
     case "openrouter":
@@ -372,230 +374,289 @@ export function buildModel(
   }
 }
 
-export const apiPlugin = () => {
+type ApiRequest = IncomingMessage & { body?: unknown };
+
+type ApiHandler = (
+  req: ApiRequest,
+  res: ServerResponse,
+) => void | Promise<void>;
+
+export const createApiHandler = (
+  getEnv: () => Record<string, string | undefined> = () => process.env,
+) => {
   const loadCatalog = createModelsDevCatalog();
   let modelCatalog: { expiresAt: number; models: CatalogModel[] } | null = null;
 
-  const attach = (
-    server: Pick<import("vite").ViteDevServer, "middlewares">,
-  ) => {
-    server.middlewares.use("/api/availability", (req, res) => {
-      if (req.method !== "GET")
-        return json(res, 405, JSON.stringify({ error: "Method not allowed." }));
-      const env = loadEnv("development", process.cwd(), "");
+  const routes = new Map<string, ApiHandler>();
 
+  const register = (path: string, handler: ApiHandler) =>
+    routes.set(path, handler);
+
+  register("/api/availability", (req, res) => {
+    if (req.method !== "GET")
+      return json(res, 405, JSON.stringify({ error: "Method not allowed." }));
+    const env = getEnv();
+
+    return json(
+      res,
+      200,
+      JSON.stringify({
+        sharedOpenRouter: Boolean(env.OPENROUTER_API_KEY?.trim()),
+      }),
+    );
+  });
+
+  register("/api/catalog", async (req, res) => {
+    if (req.method !== "GET")
+      return json(res, 405, JSON.stringify({ error: "Method not allowed." }));
+
+    try {
+      const catalogs = await loadCatalog();
+
+      return json(res, 200, JSON.stringify({ catalogs, source: "models.dev" }));
+    } catch {
       return json(
         res,
-        200,
+        503,
         JSON.stringify({
-          sharedOpenRouter: Boolean(env.OPENROUTER_API_KEY?.trim()),
+          error: "Models.dev catalog unavailable. Try again shortly.",
         }),
       );
-    });
+    }
+  });
 
-    server.middlewares.use("/api/catalog", async (req, res) => {
-      if (req.method !== "GET")
-        return json(res, 405, JSON.stringify({ error: "Method not allowed." }));
+  register("/api/models", async (req, res) => {
+    if (req.method !== "GET")
+      return json(res, 405, JSON.stringify({ error: "Method not allowed." }));
 
-      try {
-        const catalogs = await loadCatalog();
+    try {
+      const url = new URL(req.url ?? "/", "http://localhost");
 
-        return json(
-          res,
-          200,
-          JSON.stringify({ catalogs, source: "models.dev" }),
-        );
-      } catch {
-        return json(
-          res,
-          503,
-          JSON.stringify({
-            error: "Models.dev catalog unavailable. Try again shortly.",
-          }),
-        );
-      }
-    });
+      const providerId = url.searchParams.get("provider") ?? "openrouter";
 
-    server.middlewares.use("/api/models", async (req, res) => {
-      if (req.method !== "GET")
-        return json(res, 405, JSON.stringify({ error: "Method not allowed." }));
+      if (!Object.prototype.hasOwnProperty.call(providerMeta, providerId))
+        return json(res, 400, JSON.stringify({ error: "Unknown provider." }));
+      const provider = parseProvider(providerId);
 
-      try {
-        const url = new URL(req.url ?? "/", "http://localhost");
+      const keyHeader = req.headers["x-conclave-key"];
 
-        const providerId = url.searchParams.get("provider") ?? "openrouter";
+      const key =
+        (Array.isArray(keyHeader) ? keyHeader[0] : keyHeader)?.trim() ?? "";
 
-        if (!Object.prototype.hasOwnProperty.call(providerMeta, providerId))
-          return json(res, 400, JSON.stringify({ error: "Unknown provider." }));
-        const provider = parseProvider(providerId);
+      if (
+        (provider === "openrouter" || provider === "nvidia") &&
+        !key &&
+        modelCatalog &&
+        modelCatalog.expiresAt > Date.now()
+      ) {
+        const cached =
+          provider === "nvidia"
+            ? modelCatalog.models.filter((model) =>
+                model.id.startsWith("nvidia/"),
+              )
+            : modelCatalog.models;
 
-        const keyHeader = req.headers["x-conclave-key"];
-
-        const key =
-          (Array.isArray(keyHeader) ? keyHeader[0] : keyHeader)?.trim() ?? "";
-
-        if (
-          (provider === "openrouter" || provider === "nvidia") &&
-          !key &&
-          modelCatalog &&
-          modelCatalog.expiresAt > Date.now()
-        ) {
-          const cached =
-            provider === "nvidia"
-              ? modelCatalog.models.filter((model) =>
-                  model.id.startsWith("nvidia/"),
-                )
-              : modelCatalog.models;
-
-          if (cached.length) {
-            return json(
-              res,
-              200,
-              JSON.stringify({ models: cached, source: "live" }),
-            );
-          }
-        }
-
-        try {
-          const models = await fetchProviderModels(provider, key);
-
-          if (!models.length) throw new Error("Empty catalog");
-
-          if (provider === "openrouter" && !key) {
-            modelCatalog = { expiresAt: Date.now() + 5 * 60_000, models };
-          }
-
-          return json(res, 200, JSON.stringify({ models, source: "live" }));
-        } catch {
+        if (cached.length) {
           return json(
             res,
             200,
-            JSON.stringify({
-              models: popularModels(provider),
-              source: "fallback",
-            }),
+            JSON.stringify({ models: cached, source: "live" }),
           );
         }
-      } catch {
-        return json(res, 400, JSON.stringify({ error: "Unknown provider." }));
       }
-    });
 
-    server.middlewares.use("/api/run", async (req, res) => {
-      if (req.method !== "POST")
-        return json(res, 405, JSON.stringify({ error: "Method not allowed." }));
+      try {
+        const models = await fetchProviderModels(provider, key);
 
-      let body = "";
-      let oversized = false;
+        if (!models.length) throw new Error("Empty catalog");
+
+        if (provider === "openrouter" && !key) {
+          modelCatalog = { expiresAt: Date.now() + 5 * 60_000, models };
+        }
+
+        return json(res, 200, JSON.stringify({ models, source: "live" }));
+      } catch {
+        return json(
+          res,
+          200,
+          JSON.stringify({
+            models: popularModels(provider),
+            source: "fallback",
+          }),
+        );
+      }
+    } catch {
+      return json(res, 400, JSON.stringify({ error: "Unknown provider." }));
+    }
+  });
+
+  register("/api/run", async (req, res) => {
+    if (req.method !== "POST")
+      return json(res, 405, JSON.stringify({ error: "Method not allowed." }));
+
+    let body = "";
+    let oversized = false;
+
+    if (req.body !== undefined) {
+      const rawBody = z.string().safeParse(req.body);
+      body = rawBody.success ? rawBody.data : JSON.stringify(req.body);
+      oversized = body.length > 16_384;
+    } else {
       req.on("data", (chunk) => {
         body += chunk;
 
         if (body.length > 16_384) oversized = true;
       });
       await new Promise((resolve) => req.on("end", resolve));
+    }
 
-      if (oversized) {
+    if (oversized) {
+      return json(res, 413, JSON.stringify({ error: "Request is too large." }));
+    }
+
+    try {
+      const parsed = requestSchema.safeParse(JSON.parse(body));
+
+      if (!parsed.success) {
         return json(
           res,
-          413,
-          JSON.stringify({ error: "Request is too large." }),
+          400,
+          JSON.stringify({ error: "Brief must be 20–4,000 characters." }),
         );
       }
+
+      const { brief, connection } = parsed.data;
+
+      if (!connection || connection.provider === "demo") {
+        return json(
+          res,
+          200,
+          JSON.stringify({ ...buildDemoRun(brief), mode: "local" }),
+        );
+      }
+
+      if (!connection.model.trim()) {
+        return json(
+          res,
+          400,
+          JSON.stringify({ error: "Choose a model in the model picker." }),
+        );
+      }
+
+      if (
+        (connection.provider === "ollama" ||
+          connection.provider === "lmstudio" ||
+          connection.provider === "custom") &&
+        !connection.baseURL.trim()
+      ) {
+        return json(
+          res,
+          400,
+          JSON.stringify({ error: "A local API endpoint is required." }),
+        );
+      }
+
+      const env = getEnv();
+      const model = buildModel(connection, env);
+      const runId = randomUUID();
+      res.setHeader("X-Conclave-Run-ID", runId);
+      let stage = "perspectives";
+
+      const failureMessage = (cause: unknown) => {
+        const reason = describeRunError(cause, [
+          connection.apiKey,
+          env.OPENROUTER_API_KEY ?? "",
+        ]);
+
+        const message = `${providerMeta[connection.provider].name} / ${connection.model} failed during ${stage === "chair" ? "Chair synthesis" : "assessments"}: ${reason} Run ID: ${runId}`;
+        console.error("[Conclave run failed]", {
+          runId,
+          provider: connection.provider,
+          model: connection.model,
+          stage,
+          reason,
+          errorType: cause instanceof Error ? cause.name : "UnknownError",
+        });
+
+        return message;
+      };
+
+      if (req.headers.accept?.includes("application/x-ndjson")) {
+        res.statusCode = 200;
+        res.setHeader("Content-Type", "application/x-ndjson");
+        res.setHeader("Cache-Control", "no-store");
+        res.setHeader("X-Accel-Buffering", "no");
+
+        const send = (event: CouncilEvent) => {
+          if (event.type === "stage") stage = event.stage;
+
+          if (!res.destroyed) res.write(`${JSON.stringify(event)}\n`);
+        };
+
+        try {
+          const council = await runModelCouncil(model, brief, send);
+          send({ type: "result", result: council });
+        } catch (cause) {
+          send({ type: "error", error: failureMessage(cause) });
+        }
+
+        res.end();
+
+        return;
+      }
+
+      let council;
 
       try {
-        const parsed = requestSchema.safeParse(JSON.parse(body));
-
-        if (!parsed.success) {
-          return json(
-            res,
-            400,
-            JSON.stringify({ error: "Brief must be 20–4,000 characters." }),
-          );
-        }
-
-        const { brief, connection } = parsed.data;
-
-        if (!connection || connection.provider === "demo") {
-          return json(
-            res,
-            200,
-            JSON.stringify({ ...buildDemoRun(brief), mode: "local" }),
-          );
-        }
-
-        if (!connection.model.trim()) {
-          return json(
-            res,
-            400,
-            JSON.stringify({ error: "Choose a model in the model picker." }),
-          );
-        }
-
-        if (
-          (connection.provider === "ollama" ||
-            connection.provider === "lmstudio" ||
-            connection.provider === "custom") &&
-          !connection.baseURL.trim()
-        ) {
-          return json(
-            res,
-            400,
-            JSON.stringify({ error: "A local API endpoint is required." }),
-          );
-        }
-
-        const env = loadEnv("development", process.cwd(), "");
-        const model = buildModel(connection, env);
-
-        if (req.headers.accept?.includes("application/x-ndjson")) {
-          res.statusCode = 200;
-          res.setHeader("Content-Type", "application/x-ndjson");
-          res.setHeader("Cache-Control", "no-store");
-          res.setHeader("X-Accel-Buffering", "no");
-
-          const send = (event: CouncilEvent) => {
-            if (!res.destroyed) res.write(`${JSON.stringify(event)}\n`);
-          };
-
-          try {
-            const council = await runModelCouncil(model, brief, send);
-            send({ type: "result", result: council });
-          } catch {
-            send({
-              type: "error",
-              error:
-                "The council could not complete. Check the model, endpoint, and key, then try again.",
-            });
-          }
-
-          res.end();
-
-          return;
-        }
-
-        const council = await runModelCouncil(model, brief);
-
-        return json(res, 200, JSON.stringify(council));
+        council = await runModelCouncil(model, brief, (event) => {
+          if (event.type === "stage") stage = event.stage;
+        });
       } catch (cause) {
-        if (cause instanceof ApiError) {
-          return json(
-            res,
-            cause.status,
-            JSON.stringify({ error: cause.message }),
-          );
-        }
+        return json(res, 502, JSON.stringify({ error: failureMessage(cause) }));
+      }
 
-        const message =
-          cause instanceof SyntaxError
-            ? "The request was not valid JSON."
-            : "The model request failed. Check the endpoint, model, and key.";
-
+      return json(res, 200, JSON.stringify(council));
+    } catch (cause) {
+      if (cause instanceof ApiError) {
         return json(
           res,
-          cause instanceof SyntaxError ? 400 : 500,
-          JSON.stringify({ error: message }),
+          cause.status,
+          JSON.stringify({ error: cause.message }),
         );
       }
+
+      const message =
+        cause instanceof SyntaxError
+          ? "The request was not valid JSON."
+          : "The model request failed. Check the endpoint, model, and key.";
+
+      return json(
+        res,
+        cause instanceof SyntaxError ? 400 : 500,
+        JSON.stringify({ error: message }),
+      );
+    }
+  });
+
+  return async (req: ApiRequest, res: ServerResponse) => {
+    const path = new URL(req.url ?? "/", "http://localhost").pathname;
+    const handler = routes.get(path);
+
+    if (!handler)
+      return json(res, 404, JSON.stringify({ error: "Unknown API route." }));
+    await handler(req, res);
+  };
+};
+
+export const apiPlugin = (getEnv: () => Record<string, string | undefined>) => {
+  const handler = createApiHandler(getEnv);
+
+  const attach = (
+    server: Pick<import("vite").ViteDevServer, "middlewares">,
+  ) => {
+    server.middlewares.use((req, res, next) => {
+      if (!req.url?.startsWith("/api/")) return next();
+      void handler(req, res).catch(next);
     });
   };
 

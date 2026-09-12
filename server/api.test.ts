@@ -1,3 +1,7 @@
+import { IncomingMessage, ServerResponse } from "node:http";
+import { Socket } from "node:net";
+import productionRun from "../api/run";
+import productionCatalog from "../api/catalog";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildModel } from "./api";
 import type { ProviderId } from "../src/providers";
@@ -66,4 +70,64 @@ describe("direct provider routing", () => {
       ).toThrow(/API key/);
     },
   );
+});
+
+describe("production API entrypoints", () => {
+  it("accepts a Vercel-parsed body without waiting for a consumed request stream", async () => {
+    const req = new IncomingMessage(new Socket());
+    req.method = "POST";
+    req.url = "/api/run";
+    Object.assign(req, {
+      body: {
+        brief: "Should our test team pilot a new decision workflow?",
+        connection: {
+          provider: "demo",
+          model: "offline",
+          apiKey: "",
+          baseURL: "",
+        },
+      },
+    });
+    const res = new ServerResponse(req);
+    const end = vi.spyOn(res, "end").mockReturnValue(res);
+    await productionRun(req, res);
+    expect(res.statusCode).toBe(200);
+    const result = JSON.parse(String(end.mock.calls[0][0]));
+    expect(result.mode).toBe("local");
+    expect(result.agents).toHaveLength(3);
+  });
+
+  it("serves the Models.dev catalog through the production entrypoint", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response(
+            JSON.stringify({
+              openai: {
+                models: {
+                  "test-model": {
+                    id: "test-model",
+                    name: "Test model",
+                    modalities: { input: ["text"], output: ["text"] },
+                    release_date: "2026-09-01",
+                  },
+                },
+              },
+            }),
+          ),
+        ),
+    );
+    const req = new IncomingMessage(new Socket());
+    req.method = "GET";
+    req.url = "/api/catalog";
+    const res = new ServerResponse(req);
+    const end = vi.spyOn(res, "end").mockReturnValue(res);
+    await productionCatalog(req, res);
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(String(end.mock.calls[0][0])).catalogs.openai[0].id).toBe(
+      "test-model",
+    );
+  });
 });
