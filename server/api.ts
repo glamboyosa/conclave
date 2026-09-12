@@ -14,7 +14,7 @@ import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { LanguageModel } from "ai";
 import { z } from "zod";
-import { runModelCouncil } from "../src/council.js";
+import { discussDecision, runModelCouncil } from "../src/council.js";
 import { buildDemoRun, type CouncilEvent } from "../src/engine.js";
 import {
   providerMeta,
@@ -24,6 +24,12 @@ import {
   type CatalogModel,
   type ProviderId,
 } from "../src/providers.js";
+
+import {
+  resultSchema,
+  discussionMessageSchema,
+  revisionContextSchema,
+} from "../src/schemas.js";
 
 const connectionSchema = z.object({
   provider: z.enum([
@@ -50,6 +56,7 @@ const connectionSchema = z.object({
 const requestSchema = z.object({
   brief: z.string().trim().min(20).max(4000),
   connection: connectionSchema.optional(),
+  revision: revisionContextSchema.optional(),
 });
 
 const catalogSchema = z.object({
@@ -381,6 +388,27 @@ type ApiHandler = (
   res: ServerResponse,
 ) => void | Promise<void>;
 
+const readRequestBody = async (req: ApiRequest, res: ServerResponse) => {
+  let body = "";
+
+  if (req.body !== undefined) {
+    const rawBody = z.string().safeParse(req.body);
+    body = rawBody.success ? rawBody.data : JSON.stringify(req.body);
+  } else {
+    for await (const chunk of req) {
+      if (body.length <= 131_072) body += chunk;
+    }
+  }
+
+  if (body.length > 131_072) {
+    json(res, 413, JSON.stringify({ error: "Request is too large." }));
+
+    return null;
+  }
+
+  return body;
+};
+
 export const createApiHandler = (
   getEnv: () => Record<string, string | undefined> = () => process.env,
 ) => {
@@ -490,32 +518,94 @@ export const createApiHandler = (
     }
   });
 
+  register("/api/discuss", async (req, res) => {
+    if (req.method !== "POST")
+      return json(res, 405, JSON.stringify({ error: "Method not allowed." }));
+    const body = await readRequestBody(req, res);
+
+    if (body === null) return;
+    const runId = randomUUID();
+    res.setHeader("X-Conclave-Run-ID", runId);
+    let secrets: string[] = [];
+
+    try {
+      const parsed = z
+        .object({
+          brief: z.string().max(4000),
+          memo: resultSchema,
+          messages: z.array(discussionMessageSchema).min(1).max(40),
+          connection: connectionSchema,
+        })
+        .safeParse(JSON.parse(body));
+
+      if (!parsed.success || parsed.data.messages.at(-1)?.role !== "user")
+        return json(
+          res,
+          400,
+          JSON.stringify({
+            error:
+              "Add a message of up to 4,000 characters to discuss this decision.",
+          }),
+        );
+      const { brief, memo, messages, connection } = parsed.data;
+
+      if (connection.provider === "demo")
+        return json(
+          res,
+          400,
+          JSON.stringify({
+            error:
+              "Choose a live model for replies. Offline previews support notes only.",
+          }),
+        );
+      const env = getEnv();
+      secrets = [connection.apiKey, env.OPENROUTER_API_KEY ?? ""];
+      const model = buildModel(connection, env);
+      const text = await discussDecision(model, brief, memo, messages);
+
+      return json(res, 200, JSON.stringify({ text }));
+    } catch (cause) {
+      if (cause instanceof SyntaxError)
+        return json(
+          res,
+          400,
+          JSON.stringify({ error: "The request was not valid JSON." }),
+        );
+
+      if (cause instanceof ApiError)
+        return json(
+          res,
+          cause.status,
+          JSON.stringify({ error: cause.message }),
+        );
+      const reason = describeRunError(cause, secrets);
+      console.error("[Conclave discussion failed]", { runId, reason });
+
+      return json(
+        res,
+        502,
+        JSON.stringify({ error: `${reason} Run ID: ${runId}` }),
+      );
+    }
+  });
+
   register("/api/run", async (req, res) => {
     if (req.method !== "POST")
       return json(res, 405, JSON.stringify({ error: "Method not allowed." }));
 
-    let body = "";
-    let oversized = false;
+    const body = await readRequestBody(req, res);
 
-    if (req.body !== undefined) {
-      const rawBody = z.string().safeParse(req.body);
-      body = rawBody.success ? rawBody.data : JSON.stringify(req.body);
-      oversized = body.length > 16_384;
-    } else {
-      req.on("data", (chunk) => {
-        body += chunk;
-
-        if (body.length > 16_384) oversized = true;
-      });
-      await new Promise((resolve) => req.on("end", resolve));
-    }
-
-    if (oversized) {
-      return json(res, 413, JSON.stringify({ error: "Request is too large." }));
-    }
+    if (body === null) return;
 
     try {
       const parsed = requestSchema.safeParse(JSON.parse(body));
+
+      if (body.length > 16_384 && (!parsed.success || !parsed.data.revision))
+        return json(
+          res,
+          413,
+          JSON.stringify({ error: "Request is too large." }),
+        );
 
       if (!parsed.success) {
         return json(
@@ -525,7 +615,7 @@ export const createApiHandler = (
         );
       }
 
-      const { brief, connection } = parsed.data;
+      const { brief, connection, revision } = parsed.data;
 
       if (!connection || connection.provider === "demo") {
         return json(
@@ -594,7 +684,7 @@ export const createApiHandler = (
         };
 
         try {
-          const council = await runModelCouncil(model, brief, send);
+          const council = await runModelCouncil(model, brief, send, revision);
           send({ type: "result", result: council });
         } catch (cause) {
           send({ type: "error", error: failureMessage(cause) });
@@ -608,9 +698,14 @@ export const createApiHandler = (
       let council;
 
       try {
-        council = await runModelCouncil(model, brief, (event) => {
-          if (event.type === "stage") stage = event.stage;
-        });
+        council = await runModelCouncil(
+          model,
+          brief,
+          (event) => {
+            if (event.type === "stage") stage = event.stage;
+          },
+          revision,
+        );
       } catch (cause) {
         return json(res, 502, JSON.stringify({ error: failureMessage(cause) }));
       }

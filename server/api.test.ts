@@ -1,5 +1,7 @@
 import { IncomingMessage, ServerResponse } from "node:http";
 import { Socket } from "node:net";
+import productionDiscuss from "../api/discuss";
+import { buildDemoRun } from "../src/engine";
 import productionRun from "../api/run";
 import productionCatalog from "../api/catalog";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -131,3 +133,90 @@ describe("production API entrypoints", () => {
     );
   });
 });
+
+it("serves a discussion reply through the production endpoint using the client connection", async () => {
+  const fetch = vi.fn().mockResolvedValue(
+    new Response(
+      JSON.stringify({
+        id: "test-response",
+        object: "chat.completion",
+        created: 1,
+        model: "test-model",
+        choices: [
+          {
+            index: 0,
+            message: {
+              role: "assistant",
+              content: "Cut the scope to fit £5,000.",
+            },
+            finish_reason: "stop",
+          },
+        ],
+        usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 },
+      }),
+      { headers: { "Content-Type": "application/json" } },
+    ),
+  );
+
+  vi.stubGlobal("fetch", fetch);
+  const req = new IncomingMessage(new Socket());
+  req.method = "POST";
+  req.url = "/api/discuss";
+  const brief = "Should our test team pilot a new decision workflow?";
+  Object.assign(req, {
+    body: {
+      brief,
+      memo: buildDemoRun(brief),
+      messages: [{ role: "user", content: "We only have £5,000." }],
+      connection: {
+        provider: "custom",
+        model: "test-model",
+        baseURL: "https://test.invalid/v1",
+        apiKey: "fake-client-key",
+      },
+    },
+  });
+  const res = new ServerResponse(req);
+  const end = vi.spyOn(res, "end").mockReturnValue(res);
+  await productionDiscuss(req, res);
+  expect(res.statusCode).toBe(200);
+  expect(JSON.parse(String(end.mock.calls[0][0])).text).toContain("£5,000");
+  expect(String(fetch.mock.calls[0][0])).toBe(
+    "https://test.invalid/v1/chat/completions",
+  );
+  expect(JSON.stringify(fetch.mock.calls[0][1].body)).toContain(
+    "We only have £5,000.",
+  );
+});
+
+it.each([
+  { role: "assistant", content: "A reply cannot start a new request." },
+  { role: "user", content: "x".repeat(4001) },
+])(
+  "rejects invalid discussion input before calling a provider",
+  async (message) => {
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
+    const req = new IncomingMessage(new Socket());
+    req.method = "POST";
+    req.url = "/api/discuss";
+    Object.assign(req, {
+      body: {
+        brief: "Should our test team pilot a new decision workflow?",
+        memo: buildDemoRun("Test decision"),
+        messages: [message],
+        connection: {
+          provider: "openai",
+          model: "test-model",
+          baseURL: "",
+          apiKey: "fake-client-key",
+        },
+      },
+    });
+    const res = new ServerResponse(req);
+    vi.spyOn(res, "end").mockReturnValue(res);
+    await productionDiscuss(req, res);
+    expect(res.statusCode).toBe(400);
+    expect(fetch).not.toHaveBeenCalled();
+  },
+);

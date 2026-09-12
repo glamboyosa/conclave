@@ -96,3 +96,13 @@ export type CouncilEvent =
   | { type: "perspective"; id: AgentId }
   | { type: "result"; result: RunResult }
   | { type: "error"; error: string };
+
+export type DiscussionMessage = {
+  role: "user" | "assistant";
+  content: string;
+};
+
+export type RevisionContext = {
+  memo: RunResult;
+  messages: DiscussionMessage[];
+};

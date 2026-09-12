@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { buildDemoRun } from "./engine";
-import { decisionMarkdown, loadDecisionLibrary, saveDecision } from "./storage";
+import {
+  decisionMarkdown,
+  loadDecisionLibrary,
+  saveDecision,
+  saveDiscussion,
+} from "./storage";
 
 beforeEach(() => localStorage.clear());
 
@@ -35,4 +40,31 @@ it("strips secret-bearing extra fields from records before saving", () => {
     "fake-test-secret",
   );
   expect(decisionMarkdown(record)).not.toContain("fake-test-secret");
+});
+
+it("keeps the original memo intact while saving discussion and a linked revision", () => {
+  const brief = "Should our test team pilot a new decision workflow?";
+  const original = saveDecision(brief, buildDemoRun(brief));
+
+  const discussion = [
+    { role: "user" as const, content: "The budget has dropped to £5,000." },
+  ];
+
+  saveDiscussion(original.id, discussion);
+
+  const revision = saveDecision(
+    brief,
+    { ...original.result, verdict: "Reduce the pilot budget." },
+    original.id,
+  );
+
+  const records = loadDecisionLibrary();
+  expect(records).toHaveLength(2);
+  expect(records[0].parentId).toBe(original.id);
+  expect(revision.id).not.toBe(original.id);
+  expect(records[1].result.verdict).toBe(original.result.verdict);
+  expect(records[1].discussion).toEqual(discussion);
+  expect(decisionMarkdown(records[1])).toContain(
+    "The budget has dropped to £5,000.",
+  );
 });

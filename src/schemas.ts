@@ -32,3 +32,19 @@ export const eventSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("result"), result: resultSchema }),
   z.object({ type: z.literal("error"), error: z.string() }),
 ]);
+
+export const discussionMessageSchema = z.discriminatedUnion("role", [
+  z.object({
+    role: z.literal("user"),
+    content: z.string().trim().min(1).max(4000),
+  }),
+  z.object({
+    role: z.literal("assistant"),
+    content: z.string().trim().min(1).max(12000),
+  }),
+]);
+
+export const revisionContextSchema = z.object({
+  memo: resultSchema,
+  messages: z.array(discussionMessageSchema).min(1).max(40),
+});

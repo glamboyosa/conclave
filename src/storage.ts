@@ -1,12 +1,14 @@
 import { z } from "zod";
-import { resultSchema } from "./schemas";
-import type { RunResult } from "./engine";
+import { discussionMessageSchema, resultSchema } from "./schemas";
+import type { DiscussionMessage, RunResult } from "./engine";
 
 export type DecisionRecord = {
   id: string;
   createdAt: string;
   brief: string;
   result: RunResult;
+  discussion?: DiscussionMessage[];
+  parentId?: string;
 };
 
 const libraryKey = "conclave:library";
@@ -28,6 +30,8 @@ export function loadDecisionLibrary(): DecisionRecord[] {
           createdAt: z.string(),
           brief: z.string(),
           result: resultSchema,
+          discussion: z.array(discussionMessageSchema).max(40).optional(),
+          parentId: z.string().optional(),
         }),
       )
       .parse(records);
@@ -38,14 +42,19 @@ export function loadDecisionLibrary(): DecisionRecord[] {
   }
 }
 
-export function saveDecision(brief: string, result: RunResult): DecisionRecord {
+export function saveDecision(
+  brief: string,
+  result: RunResult,
+  parentId?: string,
+): DecisionRecord {
   const createdAt = new Date().toISOString();
 
   const record = {
-    id: createdAt,
+    id: crypto.randomUUID(),
     createdAt,
     brief,
     result: resultSchema.parse(result),
+    parentId,
   };
 
   const records = [record, ...loadDecisionLibrary()].slice(0, 50);
@@ -54,6 +63,18 @@ export function saveDecision(brief: string, result: RunResult): DecisionRecord {
 
   return record;
 }
+
+export const saveDiscussion = (id: string, discussion: DiscussionMessage[]) => {
+  const messages = z.array(discussionMessageSchema).max(40).parse(discussion);
+
+  const records = loadDecisionLibrary().map((record) =>
+    record.id === id ? { ...record, discussion: messages } : record,
+  );
+
+  localStorage.setItem(libraryKey, JSON.stringify(records));
+
+  return records;
+};
 
 export function decisionMarkdown(record: DecisionRecord) {
   const positions = record.result.agents
@@ -66,5 +87,9 @@ export function decisionMarkdown(record: DecisionRecord) {
   const list = (values: string[]) =>
     values.map((value) => `- ${value}`).join("\n");
 
-  return `# ${record.result.title}\n\nCreated: ${record.createdAt}\nModel mode: ${record.result.mode}${record.result.execution ? `\nProvider: ${record.result.execution.provider}\nModel: ${record.result.execution.model}` : ""}\n\n## Decision brief\n\n${record.brief}\n\n## Chair's call\n\n${record.result.verdict}\n\nConfidence: ${record.result.confidence}/100\n\n## Independent positions\n\n${positions}\n\n## Productive tensions\n\n${list(record.result.tensions)}\n\n## Next moves\n\n${list(record.result.actions)}\n\n## Assumptions\n\n${list(record.result.assumptions)}\n`;
+  const discussion = record.discussion?.length
+    ? `\n## Discussion\n\n${record.discussion.map((message) => `### ${message.role === "user" ? "You" : "Chair"}\n\n${message.content}`).join("\n\n")}\n`
+    : "";
+
+  return `# ${record.result.title}\n\nCreated: ${record.createdAt}\nModel mode: ${record.result.mode}${record.result.execution ? `\nProvider: ${record.result.execution.provider}\nModel: ${record.result.execution.model}` : ""}\n\n## Decision brief\n\n${record.brief}\n\n## Chair's call\n\n${record.result.verdict}\n\nConfidence: ${record.result.confidence}/100\n\n## Independent positions\n\n${positions}\n\n## Productive tensions\n\n${list(record.result.tensions)}\n\n## Next moves\n\n${list(record.result.actions)}\n\n## Assumptions\n\n${list(record.result.assumptions)}\n${discussion}`;
 }

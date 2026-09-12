@@ -17,6 +17,7 @@ import {
 import type { RunResult } from "./engine";
 import { Button } from "./components/ui/button";
 import { useModelCatalog } from "./hooks/useModelCatalog";
+import { DecisionDiscussion } from "./components/product/DecisionDiscussion";
 import { CouncilResults } from "./components/product/CouncilResults";
 import { DecisionLibrary } from "./components/product/DecisionLibrary";
 import { DecisionComposer } from "./components/product/DecisionComposer";
@@ -43,6 +44,7 @@ import {
   decisionMarkdown,
   loadDecisionLibrary,
   saveDecision,
+  saveDiscussion,
   type DecisionRecord,
 } from "./storage";
 
@@ -51,7 +53,12 @@ const sample =
 
 type Phase = "idle" | "running" | "done" | "error";
 
-type SavedRun = { phase: Phase; brief: string; result: RunResult | null };
+type SavedRun = {
+  phase: Phase;
+  brief: string;
+  result: RunResult | null;
+  recordId?: string;
+};
 
 type View = "decision" | "library" | "settings" | "guide";
 
@@ -62,7 +69,11 @@ function loadSavedRun(): SavedRun {
 
   try {
     const savedMemo = z
-      .object({ brief: z.string(), result: resultSchema })
+      .object({
+        brief: z.string(),
+        result: resultSchema,
+        recordId: z.string().optional(),
+      })
       .safeParse(JSON.parse(saved));
 
     if (savedMemo.success) {
@@ -70,6 +81,7 @@ function loadSavedRun(): SavedRun {
 
       return {
         phase: "done",
+        recordId: parsed.recordId,
         brief: parsed.brief,
         result: resultSchema.parse(parsed.result),
       };
@@ -142,6 +154,7 @@ export default function App() {
   const [phase, setPhase] = useState<Phase>(initial.phase);
   const [result, setResult] = useState<RunResult | null>(initial.result);
   const [error, setError] = useState("");
+  const [recordId, setRecordId] = useState(initial.recordId);
   const [view, setView] = useState<View>("decision");
   const [library, setLibrary] = useState<DecisionRecord[]>(loadDecisionLibrary);
 
@@ -241,7 +254,7 @@ export default function App() {
     }
   }
 
-  async function runCouncil() {
+  async function runCouncil(revision?: DecisionRecord) {
     if (phase === "running") return;
 
     if (brief.trim().length < 20) {
@@ -305,7 +318,8 @@ export default function App() {
     setCompleted([]);
     setError("");
     setPhase("running");
-    setResult(null);
+
+    if (!revision) setResult(null);
 
     try {
       const response = await fetch("/api/run", {
@@ -314,7 +328,13 @@ export default function App() {
           "Content-Type": "application/json",
           Accept: "application/x-ndjson",
         },
-        body: JSON.stringify({ brief: brief.trim(), connection }),
+        body: JSON.stringify({
+          brief: brief.trim(),
+          connection,
+          revision: revision
+            ? { memo: revision.result, messages: revision.discussion }
+            : undefined,
+        }),
       });
 
       const data = await readCouncilResponse(response, (event) => {
@@ -335,11 +355,16 @@ export default function App() {
 
       setResult(memo);
       setPhase("done");
+      const record = saveDecision(brief.trim(), memo, revision?.id);
+      setRecordId(record.id);
       localStorage.setItem(
         "conclave:lastRun",
-        JSON.stringify({ brief: brief.trim(), result: memo }),
+        JSON.stringify({
+          brief: brief.trim(),
+          result: memo,
+          recordId: record.id,
+        }),
       );
-      const record = saveDecision(brief.trim(), memo);
 
       setLibrary((records) => [record, ...records].slice(0, 50));
     } catch (cause) {
@@ -349,7 +374,7 @@ export default function App() {
           ? cause.message
           : "The council could not complete this run.",
       );
-      setPhase("error");
+      setPhase(revision ? "done" : "error");
     }
   }
 
@@ -357,8 +382,14 @@ export default function App() {
     runId.current++;
     localStorage.setItem(
       "conclave:lastRun",
-      JSON.stringify({ brief: record.brief, result: record.result }),
+      JSON.stringify({
+        brief: record.brief,
+        result: record.result,
+        recordId: record.id,
+      }),
     );
+    setRecordId(record.id);
+    setError("");
     setBrief(record.brief);
     setResult(record.result);
     setPhase("done");
@@ -383,12 +414,24 @@ export default function App() {
     runId.current++;
     setView("decision");
     setBrief("");
+    setRecordId(undefined);
     setResult(null);
     setError("");
     setPhase("idle");
     localStorage.removeItem("conclave:lastRun");
     setTimeout(() => textareaRef.current?.focus(), 0);
   }
+
+  const activeRecord =
+    library.find((record) => record.id === recordId) ??
+    library.find(
+      (record) =>
+        record.brief === brief && record.result.title === result?.title,
+    );
+
+  const parentRecord = library.find(
+    (record) => record.id === activeRecord?.parentId,
+  );
 
   const modelLabel = (modelId: string) =>
     models.find((model) => model.id === modelId)?.name ??
@@ -581,7 +624,7 @@ export default function App() {
               error={error}
               textareaRef={textareaRef}
               onChange={setBrief}
-              onRun={runCouncil}
+              onRun={() => void runCouncil()}
               onExample={() => {
                 setBrief(sample);
                 textareaRef.current?.focus();
@@ -598,19 +641,59 @@ export default function App() {
             />
           )}
           {view === "decision" && phase === "done" && result && (
-            <CouncilResults
-              result={result}
-              brief={brief}
-              onNew={reset}
-              onExport={() =>
-                exportRecord({
-                  id: new Date().toISOString(),
-                  createdAt: new Date().toISOString(),
-                  brief,
-                  result,
-                })
-              }
-            />
+            <div className="decision-thread">
+              {parentRecord && (
+                <Button
+                  variant="ghost"
+                  onClick={() => openRecord(parentRecord)}
+                >
+                  View previous memo
+                </Button>
+              )}
+              <CouncilResults
+                result={result}
+                brief={brief}
+                onNew={reset}
+                onExport={() =>
+                  exportRecord(
+                    activeRecord ?? {
+                      id: "export",
+                      createdAt: new Date().toISOString(),
+                      brief,
+                      result,
+                    },
+                  )
+                }
+              />
+              {error && (
+                <p role="alert" className="discussion-error">
+                  {error}
+                </p>
+              )}
+              <DecisionDiscussion
+                key={activeRecord?.id ?? "unsaved"}
+                record={
+                  activeRecord ?? {
+                    id: "unsaved",
+                    createdAt: new Date().toISOString(),
+                    brief,
+                    result,
+                  }
+                }
+                connection={connection}
+                controls={connectionControls}
+                onSave={(messages) => {
+                  const record = activeRecord ?? saveDecision(brief, result);
+                  setRecordId(record.id);
+                  setLibrary(saveDiscussion(record.id, messages));
+                  localStorage.setItem(
+                    "conclave:lastRun",
+                    JSON.stringify({ brief, result, recordId: record.id }),
+                  );
+                }}
+                onRevise={() => activeRecord && void runCouncil(activeRecord)}
+              />
+            </div>
           )}
         </div>
       </main>

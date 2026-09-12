@@ -724,6 +724,7 @@ input::placeholder {
 .library-view,
 .guide-view,
 .council-running,
+.decision-thread,
 .results {
   max-width: 780px;
   margin: 0 auto;
@@ -1479,4 +1480,98 @@ details ul {
 }
 .picker-options button.provider-group-start strong {
   -webkit-line-clamp: 1;
+}
+
+.decision-discussion {
+  max-width: 780px;
+  margin: 28px auto 0;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+.discussion-body {
+  margin-top: 24px;
+}
+.discussion-body h2 {
+  font-size: 18px;
+}
+.discussion-hint {
+  margin: 10px 0 16px;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.7;
+}
+.discussion-messages {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.discussion-message {
+  padding: 14px 16px;
+  border-radius: 12px;
+  overflow-wrap: anywhere;
+}
+.discussion-user {
+  background: var(--paper);
+  border: 1px solid var(--border);
+}
+.discussion-message strong {
+  font-size: 12px;
+  color: var(--muted);
+}
+.discussion-message p {
+  margin-top: 8px;
+  font-size: 14px;
+  line-height: 1.8;
+  white-space: pre-wrap;
+}
+.discussion-composer textarea {
+  resize: vertical;
+}
+.discussion-error {
+  color: var(--destructive);
+  font-size: 13px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+  margin: 12px 0;
+}
+
+.discussion-pending {
+  display: grid;
+  height: 1.7em;
+  overflow: hidden;
+}
+.discussion-pending-message {
+  grid-area: 1 / 1;
+  white-space: nowrap;
+  animation: discussion-pending-message 12s cubic-bezier(0.32, 0.72, 0, 1)
+    infinite both;
+}
+.discussion-pending[data-paused="true"] .discussion-pending-message {
+  animation-play-state: paused;
+}
+@keyframes discussion-pending-message {
+  0% {
+    opacity: 0;
+    transform: translateY(-100%);
+  }
+  2%,
+  23% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  25%,
+  100% {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .discussion-pending-message {
+    animation: none;
+    opacity: 0;
+    transform: none;
+  }
+  .discussion-pending-message:nth-of-type(2) {
+    opacity: 1;
+  }
 }
