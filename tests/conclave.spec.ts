@@ -8,6 +8,7 @@ test.beforeEach(async ({ page }) => {
 
 async function useOfflineCouncil(page: Page) {
   await page.getByLabel("Model").click();
+  await page.getByRole("button", { name: "All", exact: true }).click();
   await page.getByRole("option", { name: /Offline council/ }).click();
   await expect(page.getByLabel("Model")).toContainText("Offline council");
 }
@@ -37,6 +38,7 @@ test("invalid brief is rejected accessibly", async ({ page }) => {
 
 test("BYOK providers ask for a key instead of running", async ({ page }) => {
   await page.getByLabel("Model").click();
+  await page.getByRole("button", { name: "All", exact: true }).click();
   await page
     .getByRole("option", { name: "Claude Fable 5.1", exact: true })
     .click();
@@ -55,6 +57,7 @@ test("recent paid NVIDIA models require an OpenRouter key", async ({
   page,
 }) => {
   await page.getByLabel("Model").click();
+  await page.getByRole("button", { name: "All", exact: true }).click();
   await page.getByLabel("Search models").fill("Nemotron 3.5 Lightning");
   await page
     .getByRole("option", {
@@ -165,6 +168,7 @@ test("settings manage connections and never persist keys", async ({ page }) => {
     page.getByRole("heading", { name: "Model & connection" }),
   ).toBeVisible();
   await page.getByLabel("Model", { exact: true }).click();
+  await page.getByRole("button", { name: "All", exact: true }).click();
   await page.getByLabel("Search models").fill("Claude Opus 5");
   await page
     .getByRole("option", { name: "Claude Opus 5", exact: true })
@@ -180,6 +184,7 @@ test("settings manage connections and never persist keys", async ({ page }) => {
   ).toBeVisible();
 
   await page.getByLabel("Model", { exact: true }).click();
+  await page.getByRole("button", { name: "All", exact: true }).click();
   await page.getByLabel("Search models").fill("Nemotron 3.5 Lightning 30B A3B");
   await page
     .getByRole("option", {

@@ -27,6 +27,7 @@ describe("decision room", () => {
 
     render(<App />);
     await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.click(screen.getByRole("button", { name: "All" }));
     await userEvent.click(
       await screen.findByRole("option", { name: "Claude Fable 5.1" }),
     );
@@ -62,6 +63,7 @@ describe("decision room", () => {
 
     render(<App />);
     await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.click(screen.getByRole("button", { name: "All" }));
     await userEvent.click(
       await screen.findByRole("option", { name: "Claude Fable 5.1" }),
     );
@@ -154,6 +156,7 @@ describe("decision room", () => {
     expect(screen.getByText(/shared OpenRouter key/)).toBeInTheDocument();
 
     await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.click(screen.getByRole("button", { name: "All" }));
     await userEvent.type(
       screen.getByLabelText("Search models"),
       "Nemotron 3.5 Lightning 30B A3B",
@@ -176,6 +179,7 @@ describe("decision room", () => {
       screen.getAllByRole("button", { name: "Settings" })[0],
     );
     await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.click(screen.getByRole("button", { name: "All" }));
     await userEvent.type(
       screen.getByLabelText("Search models"),
       "Claude Opus 5",
@@ -199,6 +203,7 @@ it("blocks paid OpenRouter routes before sending a run", async () => {
 
   render(<App />);
   await userEvent.click(screen.getByLabelText("Model"));
+  await userEvent.click(screen.getByRole("button", { name: "All" }));
   await userEvent.type(
     screen.getByLabelText("Search models"),
     "Anthropic Claude Fable",
@@ -228,6 +233,7 @@ it("shares the in-memory OpenRouter key with NVIDIA and clears it on reload", as
     "fake-session-key",
   );
   await userEvent.click(screen.getByLabelText("Model"));
+  await userEvent.click(screen.getByRole("button", { name: "All" }));
   await userEvent.type(
     screen.getByLabelText("Search models"),
     "Nemotron 3.5 Lightning",
@@ -235,6 +241,7 @@ it("shares the in-memory OpenRouter key with NVIDIA and clears it on reload", as
   await userEvent.click(
     screen.getByRole("option", { name: "Nemotron 3.5 Lightning 30B A3B" }),
   );
+  await userEvent.click(screen.getByRole("button", { name: "Manage key" }));
   expect(screen.getByLabelText(/API key/, { selector: "input" })).toHaveValue(
     "fake-session-key",
   );
@@ -251,6 +258,7 @@ it("does not persist credential-bearing endpoint URLs", async () => {
   vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("no catalog"));
   render(<App />);
   await userEvent.click(screen.getByLabelText("Model"));
+  await userEvent.click(screen.getByRole("button", { name: "All" }));
   await userEvent.type(
     screen.getByLabelText("Search models"),
     "OpenAI-compatible",

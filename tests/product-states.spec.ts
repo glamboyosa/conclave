@@ -43,6 +43,7 @@ test("catalog loading, failure, key verification, and unavailable selection", as
     page.getByText(/Connection failed or catalog unavailable/),
   ).toBeVisible();
   await page.getByLabel("Model", { exact: true }).click();
+  await page.getByRole("button", { name: "All", exact: true }).click();
   await page.getByLabel("Search models").fill("Claude Fable 5.1");
   await page
     .getByRole("option", { name: "Claude Fable 5.1", exact: true })
@@ -67,6 +68,7 @@ test("catalog loading, failure, key verification, and unavailable selection", as
     page.getByText(/Model unavailable in the live catalog/),
   ).toBeVisible();
   await page.getByLabel("Model", { exact: true }).click();
+  await page.getByRole("button", { name: "All", exact: true }).click();
   await page.getByLabel("Search models").fill("Test model");
   await page.getByLabel("Search models").press("Enter");
   await expect(page.getByLabel("Model", { exact: true })).toContainText(
@@ -180,6 +182,7 @@ test("local setup, picker keyboard navigation, and paid routing guidance", async
   );
   await page.goto("/");
   await page.getByLabel("Model", { exact: true }).click();
+  await page.getByRole("button", { name: "All", exact: true }).click();
   await page
     .getByRole("button", { name: "Local / advanced", exact: true })
     .click();
@@ -191,6 +194,7 @@ test("local setup, picker keyboard navigation, and paid routing guidance", async
   );
   await page.locator("#local-model").fill("test-model");
   await page.getByLabel("Model", { exact: true }).click();
+  await page.getByRole("button", { name: "All", exact: true }).click();
   await page.getByRole("button", { name: "All", exact: true }).click();
   await page.getByLabel("Search models").fill("Anthropic Claude Fable");
   await page
@@ -318,6 +322,7 @@ test("other free OpenRouter models require BYOK while NVIDIA is shared", async (
   await expect(page.getByText("Free · Shared", { exact: true })).toBeVisible();
   await expect(page.locator("#byok-key")).not.toBeVisible();
   await page.getByLabel("Model", { exact: true }).click();
+  await page.getByRole("button", { name: "All", exact: true }).click();
   await page.getByRole("button", { name: "Ready to use", exact: true }).click();
   await page.getByLabel("Search models").fill("Test free model");
   await expect(page.getByText(/No matching models/)).toBeVisible();
@@ -373,6 +378,7 @@ test("theme preference survives reload and the model menu returns focus", async 
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await page.getByLabel("Model", { exact: true }).click();
+  await page.getByRole("button", { name: "All", exact: true }).click();
   await page.getByLabel("Search models").press("Escape");
   await expect(page.getByLabel("Model", { exact: true })).toBeFocused();
   await page.getByRole("button", { name: "Use light theme" }).click();
@@ -390,6 +396,7 @@ test("desktop sidebar can collapse and reopen a recent decision", async ({
   await page.getByRole("button", { name: "Show sidebar" }).click();
   await expect(page.locator(".sidebar")).toBeVisible();
   await page.getByLabel("Model", { exact: true }).click();
+  await page.getByRole("button", { name: "All", exact: true }).click();
   await page.getByRole("option", { name: /Offline council/ }).click();
   await page
     .getByRole("button", { name: "Use an example", exact: true })
@@ -414,6 +421,7 @@ test("320px navigation, BYOK controls, and memo fit the viewport", async ({
   await page.setViewportSize({ width: 320, height: 800 });
   await page.goto("/");
   await page.getByLabel("Model", { exact: true }).click();
+  await page.getByRole("button", { name: "All", exact: true }).click();
   await page
     .getByRole("option", { name: "Claude Fable 5.1", exact: true })
     .click();
@@ -426,6 +434,7 @@ test("320px navigation, BYOK controls, and memo fit the viewport", async ({
     ),
   ).toBe(true);
   await page.getByLabel("Model", { exact: true }).click();
+  await page.getByRole("button", { name: "All", exact: true }).click();
   await page.getByLabel("Search models").fill("Offline");
   await page.getByRole("option", { name: /Offline council/ }).click();
   await page
@@ -465,6 +474,7 @@ test("large catalogs stay bounded, keyboard selection works, and placement stays
   );
   await page.goto("/");
   await page.getByLabel("Model", { exact: true }).click();
+  await page.getByRole("button", { name: "All", exact: true }).click();
   await expect(page.locator(".picker-positioner")).toHaveAttribute(
     "data-side",
     "top",
@@ -482,6 +492,7 @@ test("large catalogs stay bounded, keyboard selection works, and placement stays
     "Test model 499",
   );
   await page.getByLabel("Model", { exact: true }).click();
+  await page.getByRole("button", { name: "All", exact: true }).click();
   await expect(page.locator(".picker-positioner")).toHaveAttribute(
     "data-side",
     "top",
@@ -497,6 +508,7 @@ test("large catalogs stay bounded, keyboard selection works, and placement stays
     "Test model 1",
   );
   await page.getByLabel("Model", { exact: true }).click();
+  await page.getByRole("button", { name: "All", exact: true }).click();
   await expect(page.locator(".picker-positioner")).toHaveAttribute(
     "data-side",
     "top",
@@ -527,6 +539,7 @@ test("direct OpenAI and Anthropic catalogs use separate client keys", async ({
   });
   await page.goto("/");
   await page.getByLabel("Model", { exact: true }).click();
+  await page.getByRole("button", { name: "All", exact: true }).click();
   await page.getByLabel("Search models").fill("OpenAI");
   const openai = page
     .getByRole("option")
@@ -537,6 +550,7 @@ test("direct OpenAI and Anthropic catalogs use separate client keys", async ({
   await page.locator("#byok-key").fill("fake-openai-key");
   await expect.poll(() => keys.openai).toBe("fake-openai-key");
   await page.getByLabel("Model", { exact: true }).click();
+  await page.getByRole("button", { name: "All", exact: true }).click();
   await page.getByLabel("Search models").fill("Claude Fable 5.1");
   await page
     .getByRole("option")
@@ -547,12 +561,15 @@ test("direct OpenAI and Anthropic catalogs use separate client keys", async ({
   await expect.poll(() => keys.anthropic).toBe("fake-anthropic-key");
   expect(keys.openrouter).toBeUndefined();
   await page.getByLabel("Model", { exact: true }).click();
+  await page.getByRole("button", { name: "All", exact: true }).click();
   await page.getByLabel("Search models").fill("OpenAI");
   await page
     .getByRole("option")
     .filter({ hasText: "OpenAI · Direct" })
     .first()
     .click();
+  await expect(page.locator("#byok-key")).toHaveCount(0);
+  await page.getByRole("button", { name: "Manage key", exact: true }).click();
   await expect(page.locator("#byok-key")).toHaveValue("fake-openai-key");
 });
 
@@ -594,6 +611,7 @@ test("Models.dev lists direct provider models before a key is added, with local 
   );
   await page.goto("/");
   await page.getByLabel("Model", { exact: true }).click();
+  await page.getByRole("button", { name: "All", exact: true }).click();
   await page.getByLabel("Search models").fill("Test newest OpenAI");
   const option = page.getByRole("option", {
     name: "Test newest OpenAI",
@@ -623,6 +641,7 @@ test("Models.dev lists direct provider models before a key is added, with local 
     "Add your OpenAI API key",
   );
   await page.getByLabel("Model", { exact: true }).click();
+  await page.getByRole("button", { name: "All", exact: true }).click();
   await page.getByLabel("Search models").fill("Test newest Anthropic");
   await expect(
     page.getByRole("option", { name: "Test newest Anthropic", exact: true }),
@@ -660,6 +679,7 @@ test("model release dates rank newer releases above older latest aliases", async
   );
   await page.goto("/");
   await page.getByLabel("Model", { exact: true }).click();
+  await page.getByRole("button", { name: "All", exact: true }).click();
   await page.getByLabel("Search models").fill("test-");
   await expect(page.getByRole("option")).toHaveCount(2);
   await expect(page.getByRole("option").nth(0)).toHaveAttribute(
@@ -726,6 +746,7 @@ test("Your provider groups OpenAI before Anthropic and orders releases within ea
   );
   await page.goto("/");
   await page.getByLabel("Model", { exact: true }).click();
+  await page.getByRole("button", { name: "All", exact: true }).click();
   await page
     .getByRole("button", { name: "Your provider", exact: true })
     .click();
@@ -790,6 +811,7 @@ test("the hosted picker excludes old, unknown, and future release dates in every
   );
   await page.goto("/");
   await page.getByLabel("Model", { exact: true }).click();
+  await page.getByRole("button", { name: "All", exact: true }).click();
   await page.getByLabel("Search models").fill("test-");
   await expect(page.getByRole("option")).toHaveCount(1);
   await expect(page.getByRole("option")).toHaveAttribute(
@@ -817,6 +839,7 @@ test("the hosted picker excludes old, unknown, and future release dates in every
     page.getByRole("textbox", { name: "API key", exact: true }),
   ).toHaveCount(0);
   await page.getByLabel("Model", { exact: true }).click();
+  await page.getByRole("button", { name: "All", exact: true }).click();
   await page.getByLabel("Search models").fill("");
   await page
     .getByRole("button", { name: "Local / advanced", exact: true })
@@ -824,4 +847,118 @@ test("the hosted picker excludes old, unknown, and future release dates in every
   await expect(
     page.getByRole("option", { name: "Ollama", exact: true }),
   ).toBeVisible();
+});
+
+test("saving a key collapses the composer for the tab session", async ({
+  page,
+}) => {
+  await page.route("**/api/models?**", (route) =>
+    route.fulfill({
+      json: { models: popularModels("openai"), source: "fallback" },
+    }),
+  );
+  await page.goto("/");
+  await page.getByLabel("Model", { exact: true }).click();
+  await page.getByRole("button", { name: "All", exact: true }).click();
+  await page.getByLabel("Search models").fill("GPT-6 Astra");
+  await page.getByRole("option").filter({ hasText: "OpenAI · Direct" }).click();
+  await page.locator("#byok-key").fill("fake-session-save-key");
+  await page.getByRole("button", { name: "Save for this tab" }).click();
+  await expect(page.locator("#byok-key")).toHaveCount(0);
+  await expect(page.locator(".connection-guidance")).toHaveCount(0);
+  await expect(page.locator(".catalog-state")).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Manage key", exact: true }),
+  ).toBeFocused();
+  await page
+    .getByLabel("Decision brief")
+    .fill("Should we add image uploads next month or focus on text decisions?");
+  await page.getByRole("button", { name: "Manage key", exact: true }).click();
+  await expect(page.locator("#byok-key")).toHaveValue("fake-session-save-key");
+  await page.getByRole("button", { name: "Reveal API key" }).click();
+  await page.getByRole("button", { name: "Save for this tab" }).click();
+  await page.getByRole("button", { name: "Manage key", exact: true }).click();
+  await expect(page.locator("#byok-key")).toHaveAttribute("type", "password");
+  await page.getByRole("button", { name: "Forget this key" }).click();
+  await expect(page.locator("#byok-key")).toHaveValue("");
+  await page.locator("#byok-key").fill("fake-session-save-key");
+  await page.getByRole("button", { name: "Save for this tab" }).click();
+  expect(
+    await page.evaluate(() =>
+      JSON.stringify({ local: localStorage, session: sessionStorage }),
+    ),
+  ).not.toContain("fake-session-save-key");
+  await page.reload();
+  await expect(page.locator("#byok-key")).toHaveValue("");
+});
+
+test("the picker reopens on the selected model's tab and provider", async ({
+  page,
+}) => {
+  await page.route("**/api/catalog", (route) =>
+    route.fulfill({
+      json: {
+        catalogs: {
+          openai: [
+            {
+              id: "gpt-5.6-sol",
+              name: "GPT-5.6 Sol",
+              free: false,
+              releaseDate: "2026-07-09",
+            },
+            ...Array.from({ length: 30 }, (_, index) => ({
+              id: `test-openai-${index}`,
+              name: `Test OpenAI ${index}`,
+              free: false,
+              releaseDate: "2026-09-01",
+            })),
+          ],
+          moonshot: [
+            {
+              id: "kimi-k3",
+              name: "Kimi K3",
+              free: false,
+              releaseDate: "2026-07-16",
+            },
+          ],
+        },
+      },
+    }),
+  );
+  await page.route("**/api/models?**", (route) =>
+    route.fulfill({ json: { models: [], source: "fallback" } }),
+  );
+  await page.goto("/");
+  await page.getByLabel("Model", { exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Ready to use", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await page
+    .getByRole("button", { name: "Your provider", exact: true })
+    .click();
+  for (const name of ["GPT-5.6 Sol", "Kimi K3"]) {
+    await page.getByLabel("Search models").fill(name);
+    await page.getByRole("option", { name, exact: true }).click();
+    await page.getByLabel("Model", { exact: true }).click();
+    await expect(
+      page.getByRole("button", { name: "Your provider", exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByLabel("Search models")).toHaveValue("");
+    const selected = page.getByRole("option", { name, exact: true });
+    await expect(selected).toBeInViewport();
+    await expect(selected).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByLabel("Search models")).toHaveAttribute(
+      "aria-activedescendant",
+      await selected.getAttribute("id"),
+    );
+    expect(
+      await page.locator(".picker-options").evaluate((list) => list.scrollTop),
+    ).toBeGreaterThan(0);
+  }
+  await page.getByRole("button", { name: "Close model picker" }).click();
+  await page.reload();
+  await page.getByLabel("Model", { exact: true }).click();
+  await expect(
+    page.getByRole("option", { name: "Kimi K3", exact: true }),
+  ).toBeInViewport();
 });

@@ -560,6 +560,15 @@ input::placeholder {
   margin-left: 12px;
   color: var(--destructive);
 }
+.key-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.key-actions .forget-key {
+  margin-left: 0;
+}
 .local-connection input {
   display: block;
   width: 100%;

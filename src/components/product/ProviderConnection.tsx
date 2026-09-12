@@ -1,4 +1,4 @@
-import { useState, type RefObject } from "react";
+import { useRef, useState, type RefObject } from "react";
 import { Eye, EyeOff, KeyRound, ShieldCheck } from "lucide-react";
 import {
   providerMeta,
@@ -9,6 +9,7 @@ import {
   type ModelConnection,
 } from "../../providers";
 import { ModelPicker } from "./ModelPicker";
+import { Button } from "../ui/button";
 import type { CatalogModel } from "../../providers";
 
 type Props = {
@@ -43,6 +44,7 @@ export const ProviderConnection = ({
   const [reveal, setReveal] = useState(false);
   const [pointerMotion, setPointerMotion] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const toggleRef = useRef<HTMLButtonElement>(null);
   const meta = providerMeta[connection.provider];
   const local = ["ollama", "lmstudio", "custom"].includes(connection.provider);
   const hasKey = Boolean(connection.apiKey.trim());
@@ -76,6 +78,8 @@ export const ProviderConnection = ({
     keyOptional(connection.provider) ||
     connection.provider === "custom";
 
+  const keyPanelOpen = expanded || (requiresKey && !hasKey);
+
   return (
     <div className="provider-connection">
       <div className="connection-row">
@@ -95,8 +99,10 @@ export const ProviderConnection = ({
         </span>
         {showKey && (
           <button
+            ref={toggleRef}
             className="connection-toggle"
-            aria-expanded={expanded}
+            aria-expanded={keyPanelOpen}
+            aria-controls="key-connection"
             data-pointer-motion={pointerMotion || undefined}
             onClick={(event) => {
               setPointerMotion(event.detail > 0);
@@ -110,8 +116,7 @@ export const ProviderConnection = ({
       </div>
       {(!compact ||
         expanded ||
-        requiresKey ||
-        hasKey ||
+        (requiresKey && !hasKey) ||
         local ||
         connection.provider === "demo") && (
         <p className="connection-guidance">
@@ -136,8 +141,8 @@ export const ProviderConnection = ({
                 : `Your brief is sent to ${providerName(connection.provider)}. ${hasKey ? "Your key is set for this tab." : `Add your ${providerName(connection.provider)} API key before convening.`}`}
         </p>
       )}
-      {showKey && (expanded || requiresKey || hasKey) && (
-        <div className="key-connection">
+      {showKey && keyPanelOpen && (
+        <div className="key-connection" id="key-connection">
           <label htmlFor="byok-key">
             {meta.keyName ?? providerName(connection.provider)} API key
             {keyOptional(connection.provider) && !requiresKey
@@ -150,7 +155,10 @@ export const ProviderConnection = ({
               id="byok-key"
               type={reveal ? "text" : "password"}
               value={connection.apiKey}
-              onChange={(event) => onKey(event.target.value)}
+              onChange={(event) => {
+                setExpanded(true);
+                onKey(event.target.value);
+              }}
               autoComplete="off"
               data-1p-ignore
               data-lpignore="true"
@@ -181,16 +189,30 @@ export const ProviderConnection = ({
             Held only in this tab’s memory. Cleared on reload or close. Sent to
             the Conclave server for catalogs and runs; never saved or exported.
           </p>
-          {meta.keyUrl && (
-            <a href={meta.keyUrl} target="_blank" rel="noreferrer">
-              Get a {meta.keyName ?? providerName(connection.provider)} key ↗
-            </a>
-          )}
-          {hasKey && (
-            <button className="forget-key" onClick={() => onKey("")}>
-              Forget this key
-            </button>
-          )}
+          <div className="key-actions">
+            {meta.keyUrl && (
+              <a href={meta.keyUrl} target="_blank" rel="noreferrer">
+                Get a {meta.keyName ?? providerName(connection.provider)} key ↗
+              </a>
+            )}
+            {hasKey && (
+              <>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setExpanded(false);
+                    setReveal(false);
+                    toggleRef.current?.focus();
+                  }}
+                >
+                  Save for this tab
+                </Button>
+                <button className="forget-key" onClick={() => onKey("")}>
+                  Forget this key
+                </button>
+              </>
+            )}
+          </div>
         </div>
       )}
       {local && (
@@ -221,6 +243,7 @@ export const ProviderConnection = ({
         source === "fallback" &&
         connection.provider !== "demo" &&
         !local &&
+        (!compact || keyPanelOpen) &&
         (!needsApiKey(connection.provider) || hasKey) && (
           <button className="connection-toggle" onClick={onRetry}>
             Retry catalog
@@ -234,11 +257,7 @@ export const ProviderConnection = ({
       )}
       {connection.provider !== "demo" &&
         !local &&
-        (!compact ||
-          expanded ||
-          hasKey ||
-          status === "loading" ||
-          source === "fallback") && (
+        (!compact || expanded || !hasKey) && (
           <p className="catalog-state" role="status">
             {status === "loading"
               ? "Loading models…"

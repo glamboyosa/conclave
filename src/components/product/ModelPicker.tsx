@@ -26,6 +26,13 @@ const providerOrder = (provider: ProviderId) => {
 
 const overscan = 4;
 
+const modelGroup = (provider: ProviderId, model: string) => {
+  if (provider === "demo" || usesSharedNvidiaRoute(provider, model))
+    return "ready";
+
+  return ["ollama", "lmstudio", "custom"].includes(provider) ? "local" : "byok";
+};
+
 const accessOrder = (provider: ProviderId, model: string) => {
   if (provider === "demo") return 0;
 
@@ -58,6 +65,7 @@ export const ModelPicker = ({
   const [scrollTop, setScrollTop] = useState(0);
   const [pointerMotion, setPointerMotion] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
+  const restoreSelection = useRef(false);
 
   const resetList = () => {
     setActive(0);
@@ -130,12 +138,7 @@ export const ModelPicker = ({
           )
             return [];
 
-          const family =
-            provider === "demo" || usesSharedNvidiaRoute(provider, model.id)
-              ? "ready"
-              : local
-                ? "local"
-                : "byok";
+          const family = modelGroup(provider, model.id);
 
           if (group !== "all" && family !== group) return [];
 
@@ -216,6 +219,11 @@ export const ModelPicker = ({
         setOpen(value);
         setQuery("");
         resetList();
+
+        if (value) {
+          setGroup(modelGroup(connection.provider, connection.model));
+          restoreSelection.current = true;
+        }
       }}
     >
       <Popover.Trigger
@@ -342,7 +350,24 @@ export const ModelPicker = ({
             </div>
             <div
               className="picker-options"
-              ref={listRef}
+              ref={(list) => {
+                listRef.current = list;
+
+                if (!list || !restoreSelection.current) return;
+
+                restoreSelection.current = false;
+
+                const index = choices.findIndex(
+                  (choice) =>
+                    choice.provider === connection.provider &&
+                    (choice.local || choice.model.id === connection.model),
+                );
+
+                const selectedIndex = Math.max(0, index);
+                list.scrollTop = selectedIndex * rowHeight;
+                setActive(selectedIndex);
+                setScrollTop(list.scrollTop);
+              }}
               onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
               style={{
                 height: Math.min(
