@@ -38,7 +38,7 @@ test("invalid brief is rejected accessibly", async ({ page }) => {
 test("BYOK providers ask for a key instead of running", async ({ page }) => {
   await page.getByLabel("Model").click();
   await page
-    .getByRole("option", { name: "Claude Sonnet 4.5", exact: true })
+    .getByRole("option", { name: "Claude Fable 5.1", exact: true })
     .click();
   await expect(page.locator("#byok-key")).toBeVisible();
   await page
@@ -51,15 +51,22 @@ test("BYOK providers ask for a key instead of running", async ({ page }) => {
   await expect(page.locator("#byok-key")).toBeFocused();
 });
 
-test("NVIDIA models run through OpenRouter without a separate key", async ({
+test("recent paid NVIDIA models require an OpenRouter key", async ({
   page,
 }) => {
   await page.getByLabel("Model").click();
-  await page.getByLabel("Search models").fill("Nemotron 3 Super 120B");
-  await page.getByRole("option", { name: /Nemotron 3 Super 120B/ }).click();
+  await page.getByLabel("Search models").fill("Nemotron 3.5 Lightning");
+  await page
+    .getByRole("option", {
+      name: "Nemotron 3.5 Lightning 30B A3B",
+      exact: true,
+    })
+    .click();
   await page.getByRole("button", { name: "API key", exact: true }).click();
   await expect(page.locator("#byok-key")).toBeVisible();
-  await expect(page.getByText(/shared OpenRouter key/)).toBeVisible();
+  await expect(
+    page.getByText(/shared key covers free NVIDIA models only/),
+  ).toBeVisible();
 });
 
 test("the API serves the NVIDIA catalog filtered from OpenRouter", async ({
@@ -148,7 +155,7 @@ test("the API serves popular models without a key", async ({ request }) => {
   const body = await response.json();
   expect(body.models.length).toBeGreaterThan(0);
   expect(body.models.map((model: { id: string }) => model.id)).toContain(
-    "claude-sonnet-4-5",
+    "claude-fable-5-1",
   );
 });
 
@@ -158,28 +165,33 @@ test("settings manage connections and never persist keys", async ({ page }) => {
     page.getByRole("heading", { name: "Model & connection" }),
   ).toBeVisible();
   await page.getByLabel("Model", { exact: true }).click();
+  await page.getByLabel("Search models").fill("Claude Opus 5");
   await page
-    .getByRole("option", { name: "Claude Opus 4.5", exact: true })
+    .getByRole("option", { name: "Claude Opus 5", exact: true })
     .click();
 
   const storage = await page.evaluate(() =>
     localStorage.getItem("conclave:connection"),
   );
-  expect(storage).toContain("claude-opus-4-5");
+  expect(storage).toContain("claude-opus-5");
   expect(storage).not.toContain("apiKey");
   await expect(
     page.getByText(/Add your Anthropic API key before convening/),
   ).toBeVisible();
 
   await page.getByLabel("Model", { exact: true }).click();
+  await page.getByLabel("Search models").fill("Nemotron 3.5 Lightning 30B A3B");
   await page
-    .getByRole("option", { name: /Nemotron 3 Super/ })
+    .getByRole("option", {
+      name: "Nemotron 3.5 Lightning 30B A3B",
+      exact: true,
+    })
     .first()
     .click();
   const restored = await page.evaluate(() =>
     localStorage.getItem("conclave:connection"),
   );
-  expect(restored).toContain("nvidia/nemotron-3-super-120b-a12b:free");
+  expect(restored).toContain("nvidia/nemotron-3.5-lightning");
 });
 
 test("the guide explains the council, BYOK, and privacy", async ({ page }) => {

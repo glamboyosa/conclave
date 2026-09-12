@@ -28,7 +28,7 @@ describe("decision room", () => {
     render(<App />);
     await userEvent.click(screen.getByLabelText("Model"));
     await userEvent.click(
-      await screen.findByRole("option", { name: "Claude Sonnet 4.5" }),
+      await screen.findByRole("option", { name: "Claude Fable 5.1" }),
     );
     await userEvent.type(
       screen.getByLabelText(/API key/, { selector: "input" }),
@@ -63,7 +63,7 @@ describe("decision room", () => {
     render(<App />);
     await userEvent.click(screen.getByLabelText("Model"));
     await userEvent.click(
-      await screen.findByRole("option", { name: "Claude Sonnet 4.5" }),
+      await screen.findByRole("option", { name: "Claude Fable 5.1" }),
     );
     await userEvent.type(
       screen.getByLabelText("Decision brief"),
@@ -138,19 +138,15 @@ describe("decision room", () => {
   it("runs free NVIDIA models on the shared OpenRouter key", async () => {
     vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("stop"));
 
+    localStorage.setItem(
+      "conclave:connection",
+      JSON.stringify({
+        provider: "nvidia",
+        model: "nvidia/nemotron-3-super-120b-a12b:free",
+        baseURL: "",
+      }),
+    );
     render(<App />);
-    await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.type(
-      screen.getByLabelText("Search models"),
-      "Nemotron 3 Super 120B",
-    );
-    await userEvent.click(
-      await screen.findByRole("option", { name: /Nemotron 3 Super 120B/ }),
-    );
-
-    expect(localStorage.getItem("conclave:connection")).toContain(
-      '"provider":"nvidia"',
-    );
     await userEvent.click(screen.getByRole("button", { name: "API key" }));
     expect(
       screen.getByLabelText(/OpenRouter API key/, { selector: "input" }),
@@ -160,10 +156,12 @@ describe("decision room", () => {
     await userEvent.click(screen.getByLabelText("Model"));
     await userEvent.type(
       screen.getByLabelText("Search models"),
-      "Nemotron 3 Nano 30B",
+      "Nemotron 3.5 Lightning 30B A3B",
     );
     await userEvent.click(
-      await screen.findByRole("option", { name: "Nemotron 3 Nano 30B" }),
+      await screen.findByRole("option", {
+        name: "Nemotron 3.5 Lightning 30B A3B",
+      }),
     );
 
     expect(
@@ -178,13 +176,17 @@ describe("decision room", () => {
       screen.getAllByRole("button", { name: "Settings" })[0],
     );
     await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.type(
+      screen.getByLabelText("Search models"),
+      "Claude Opus 5",
+    );
     await userEvent.click(
-      await screen.findByRole("option", { name: "Claude Opus 4.5" }),
+      await screen.findByRole("option", { name: "Claude Opus 5" }),
     );
 
     const saved = localStorage.getItem("conclave:connection") ?? "";
 
-    expect(saved).toContain("claude-opus-4-5");
+    expect(saved).toContain("claude-opus-5");
     expect(saved).not.toContain("apiKey");
     expect(screen.queryByLabelText("API endpoint")).not.toBeInTheDocument();
   });
@@ -199,10 +201,10 @@ it("blocks paid OpenRouter routes before sending a run", async () => {
   await userEvent.click(screen.getByLabelText("Model"));
   await userEvent.type(
     screen.getByLabelText("Search models"),
-    "Anthropic Claude Sonnet",
+    "Anthropic Claude Fable",
   );
   await userEvent.click(
-    screen.getByRole("option", { name: "Anthropic Claude Sonnet 4.5" }),
+    screen.getByRole("option", { name: "Anthropic Claude Fable 5.1" }),
   );
   await userEvent.type(
     screen.getByLabelText("Decision brief"),
@@ -228,10 +230,10 @@ it("shares the in-memory OpenRouter key with NVIDIA and clears it on reload", as
   await userEvent.click(screen.getByLabelText("Model"));
   await userEvent.type(
     screen.getByLabelText("Search models"),
-    "Nemotron 3 Super 120B",
+    "Nemotron 3.5 Lightning",
   );
   await userEvent.click(
-    screen.getByRole("option", { name: /Nemotron 3 Super 120B/ }),
+    screen.getByRole("option", { name: "Nemotron 3.5 Lightning 30B A3B" }),
   );
   expect(screen.getByLabelText(/API key/, { selector: "input" })).toHaveValue(
     "fake-session-key",
@@ -240,7 +242,6 @@ it("shares the in-memory OpenRouter key with NVIDIA and clears it on reload", as
   expect(JSON.stringify(sessionStorage)).not.toContain("fake-session-key");
   unmount();
   render(<App />);
-  await userEvent.click(screen.getByRole("button", { name: "API key" }));
   expect(screen.getByLabelText(/API key/, { selector: "input" })).toHaveValue(
     "",
   );

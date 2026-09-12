@@ -51,18 +51,6 @@ export type ProviderMeta = {
   popular: CatalogModel[];
 };
 
-const free = (id: string, name: string): CatalogModel => ({
-  id,
-  name,
-  free: true,
-});
-
-const paid = (id: string, name: string): CatalogModel => ({
-  id,
-  name,
-  free: false,
-});
-
 export const providerMeta: Record<ProviderId, ProviderMeta> = {
   demo: {
     id: "demo",
@@ -78,12 +66,24 @@ export const providerMeta: Record<ProviderId, ProviderMeta> = {
     keyUrl: "https://openrouter.ai/keys",
     defaultModel: "nvidia/nemotron-3-super-120b-a12b:free",
     popular: [
-      free("nvidia/nemotron-3-super-120b-a12b:free", "NVIDIA Nemotron 3 Super"),
-      paid("anthropic/claude-sonnet-4.5", "Anthropic Claude Sonnet 4.5"),
-      paid("openai/gpt-5-mini", "OpenAI GPT-5 mini"),
-      paid("moonshotai/kimi-k2-0905", "Moonshot Kimi K2"),
-      paid("google/gemini-2.5-flash", "Google Gemini 2.5 Flash"),
-      paid("deepseek/deepseek-chat-v3.1", "DeepSeek V3.1"),
+      {
+        id: "nvidia/nemotron-3-super-120b-a12b:free",
+        name: "NVIDIA Nemotron 3 Super (free)",
+        free: true,
+        releaseDate: "2026-03-11",
+      },
+      {
+        id: "anthropic/claude-fable-5.1",
+        name: "Anthropic Claude Fable 5.1",
+        free: false,
+        releaseDate: "2026-09-01",
+      },
+      {
+        id: "openai/gpt-6-astra",
+        name: "OpenAI GPT-6 Astra",
+        free: false,
+        releaseDate: "2026-09-04",
+      },
     ],
   },
   anthropic: {
@@ -91,11 +91,26 @@ export const providerMeta: Record<ProviderId, ProviderMeta> = {
     name: "Anthropic",
     key: "required",
     keyUrl: "https://console.anthropic.com/settings/keys",
-    defaultModel: "claude-sonnet-4-5",
+    defaultModel: "claude-fable-5-1",
     popular: [
-      paid("claude-opus-4-5", "Claude Opus 4.5"),
-      paid("claude-sonnet-4-5", "Claude Sonnet 4.5"),
-      paid("claude-haiku-4-5", "Claude Haiku 4.5"),
+      {
+        id: "claude-fable-5-1",
+        name: "Claude Fable 5.1",
+        free: false,
+        releaseDate: "2026-09-01",
+      },
+      {
+        id: "claude-opus-5",
+        name: "Claude Opus 5",
+        free: false,
+        releaseDate: "2026-07-24",
+      },
+      {
+        id: "claude-sonnet-5",
+        name: "Claude Sonnet 5",
+        free: false,
+        releaseDate: "2026-06-29",
+      },
     ],
   },
   openai: {
@@ -103,11 +118,26 @@ export const providerMeta: Record<ProviderId, ProviderMeta> = {
     name: "OpenAI",
     key: "required",
     keyUrl: "https://platform.openai.com/api-keys",
-    defaultModel: "gpt-5-mini",
+    defaultModel: "gpt-6-astra",
     popular: [
-      paid("gpt-5", "GPT-5"),
-      paid("gpt-5-mini", "GPT-5 mini"),
-      paid("gpt-5-nano", "GPT-5 nano"),
+      {
+        id: "gpt-6-astra",
+        name: "GPT-6 Astra",
+        free: false,
+        releaseDate: "2026-09-04",
+      },
+      {
+        id: "gpt-5.6-sol",
+        name: "GPT-5.6 Sol",
+        free: false,
+        releaseDate: "2026-07-09",
+      },
+      {
+        id: "gpt-5.6-luna",
+        name: "GPT-5.6 Luna",
+        free: false,
+        releaseDate: "2026-07-09",
+      },
     ],
   },
   google: {
@@ -115,11 +145,26 @@ export const providerMeta: Record<ProviderId, ProviderMeta> = {
     name: "Google",
     key: "required",
     keyUrl: "https://aistudio.google.com/apikey",
-    defaultModel: "gemini-2.5-flash",
+    defaultModel: "gemini-3.8-flash",
     popular: [
-      paid("gemini-2.5-pro", "Gemini 2.5 Pro"),
-      paid("gemini-2.5-flash", "Gemini 2.5 Flash"),
-      paid("gemini-2.5-flash-lite", "Gemini 2.5 Flash-Lite"),
+      {
+        id: "gemini-3.8-flash",
+        name: "Gemini 3.8 Flash",
+        free: false,
+        releaseDate: "2026-09-02",
+      },
+      {
+        id: "gemini-3.7-flash",
+        name: "Gemini 3.7 Flash",
+        free: false,
+        releaseDate: "2026-08-13",
+      },
+      {
+        id: "gemini-flash-latest",
+        name: "Gemini Flash Latest",
+        free: false,
+        releaseDate: "2026-08-13",
+      },
     ],
   },
   moonshot: {
@@ -127,11 +172,26 @@ export const providerMeta: Record<ProviderId, ProviderMeta> = {
     name: "Kimi (Moonshot)",
     key: "required",
     keyUrl: "https://platform.moonshot.ai/console/api-keys",
-    defaultModel: "kimi-k2-0905-preview",
+    defaultModel: "kimi-k3",
     popular: [
-      paid("kimi-k2-0905-preview", "Kimi K2"),
-      paid("kimi-k2-turbo-preview", "Kimi K2 Turbo"),
-      paid("kimi-latest", "Kimi Latest"),
+      {
+        id: "kimi-k3",
+        name: "Kimi K3",
+        free: false,
+        releaseDate: "2026-07-16",
+      },
+      {
+        id: "kimi-k2.7-code-highspeed",
+        name: "Kimi K2.7 Code HighSpeed",
+        free: false,
+        releaseDate: "2026-06-12",
+      },
+      {
+        id: "kimi-k2.7-code",
+        name: "Kimi K2.7 Code",
+        free: false,
+        releaseDate: "2026-06-12",
+      },
     ],
   },
   deepseek: {
@@ -139,10 +199,26 @@ export const providerMeta: Record<ProviderId, ProviderMeta> = {
     name: "DeepSeek",
     key: "required",
     keyUrl: "https://platform.deepseek.com/api_keys",
-    defaultModel: "deepseek-chat",
+    defaultModel: "deepseek-v4-flash",
     popular: [
-      paid("deepseek-chat", "DeepSeek Chat"),
-      paid("deepseek-reasoner", "DeepSeek Reasoner"),
+      {
+        id: "deepseek-v4-flash-vision-exp",
+        name: "DeepSeek V4 Flash Vision Exp",
+        free: false,
+        releaseDate: "2026-09-10",
+      },
+      {
+        id: "deepseek-v4-flash",
+        name: "DeepSeek V4 Flash",
+        free: false,
+        releaseDate: "2026-09-10",
+      },
+      {
+        id: "deepseek-flash",
+        name: "DeepSeek V4.1 Flash",
+        free: false,
+        releaseDate: "2026-09-10",
+      },
     ],
   },
   xai: {
@@ -150,11 +226,20 @@ export const providerMeta: Record<ProviderId, ProviderMeta> = {
     name: "xAI",
     key: "required",
     keyUrl: "https://console.x.ai/",
-    defaultModel: "grok-4-fast-reasoning",
+    defaultModel: "grok-4.6",
     popular: [
-      paid("grok-4", "Grok 4"),
-      paid("grok-4-fast-reasoning", "Grok 4 Fast"),
-      paid("grok-code-fast-1", "Grok Code Fast"),
+      {
+        id: "grok-4.6",
+        name: "Grok 4.6",
+        free: false,
+        releaseDate: "2026-08-12",
+      },
+      {
+        id: "grok-4.5",
+        name: "Grok 4.5",
+        free: false,
+        releaseDate: "2026-07-08",
+      },
     ],
   },
   groq: {
@@ -162,11 +247,14 @@ export const providerMeta: Record<ProviderId, ProviderMeta> = {
     name: "Groq",
     key: "required",
     keyUrl: "https://console.groq.com/keys",
-    defaultModel: "llama-3.3-70b-versatile",
+    defaultModel: "qwen/qwen3.8-27b",
     popular: [
-      paid("llama-3.3-70b-versatile", "Llama 3.3 70B"),
-      paid("openai/gpt-oss-120b", "GPT-OSS 120B"),
-      paid("qwen/qwen3-32b", "Qwen3 32B"),
+      {
+        id: "qwen/qwen3.8-27b",
+        name: "Qwen3.8 27B",
+        free: false,
+        releaseDate: "2026-08-14",
+      },
     ],
   },
   mistral: {
@@ -174,11 +262,14 @@ export const providerMeta: Record<ProviderId, ProviderMeta> = {
     name: "Mistral",
     key: "required",
     keyUrl: "https://console.mistral.ai/api-keys",
-    defaultModel: "mistral-large-latest",
+    defaultModel: "zai-glm-5-2",
     popular: [
-      paid("mistral-large-latest", "Mistral Large"),
-      paid("mistral-medium-latest", "Mistral Medium"),
-      paid("mistral-small-latest", "Mistral Small"),
+      {
+        id: "zai-glm-5-2",
+        name: "GLM-5.2",
+        free: false,
+        releaseDate: "2026-06-13",
+      },
     ],
   },
   nvidia: {
@@ -189,9 +280,24 @@ export const providerMeta: Record<ProviderId, ProviderMeta> = {
     keyName: "OpenRouter",
     defaultModel: "nvidia/nemotron-3-super-120b-a12b:free",
     popular: [
-      free("nvidia/nemotron-3-super-120b-a12b:free", "Nemotron 3 Super 120B"),
-      paid("nvidia/nemotron-3-nano-30b-a3b", "Nemotron 3 Nano 30B"),
-      paid("nvidia/nemotron-3-ultra-550b-a55b", "Nemotron 3 Ultra"),
+      {
+        id: "nvidia/nemotron-3-super-120b-a12b:free",
+        name: "Nemotron 3 Super (free)",
+        free: true,
+        releaseDate: "2026-03-11",
+      },
+      {
+        id: "nvidia/nemotron-3.5-lightning",
+        name: "Nemotron 3.5 Lightning 30B A3B",
+        free: false,
+        releaseDate: "2026-08-11",
+      },
+      {
+        id: "nvidia/nemotron-3-ultra-550b-a55b",
+        name: "Nemotron 3 Ultra 550B A55B",
+        free: false,
+        releaseDate: "2026-06-04",
+      },
     ],
   },
   ollama: {
@@ -298,4 +404,17 @@ export const persistableEndpoint = (value: string): string => {
   } catch {
     return "";
   }
+};
+
+/** Only models with a known release within the last 180 UTC days belong in the hosted picker. */
+export const isRecentModel = (model: CatalogModel, today = new Date()) => {
+  if (!model.releaseDate) return false;
+  const cutoff = new Date(today);
+  cutoff.setUTCDate(cutoff.getUTCDate() - 180);
+  const end = today.toISOString().slice(0, 10);
+
+  return (
+    model.releaseDate >= cutoff.toISOString().slice(0, 10) &&
+    model.releaseDate <= end
+  );
 };

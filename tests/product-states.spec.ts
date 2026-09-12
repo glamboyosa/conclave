@@ -26,6 +26,7 @@ test("catalog loading, failure, key verification, and unavailable selection", as
                 id: "test-model",
                 name: "Test model with a deliberately long descriptive name for wrapping",
                 free: false,
+                releaseDate: "2026-09-01",
               },
             ]
           : popularModels(
@@ -42,9 +43,9 @@ test("catalog loading, failure, key verification, and unavailable selection", as
     page.getByText(/Connection failed or catalog unavailable/),
   ).toBeVisible();
   await page.getByLabel("Model", { exact: true }).click();
-  await page.getByLabel("Search models").fill("Claude Sonnet 4.5");
+  await page.getByLabel("Search models").fill("Claude Fable 5.1");
   await page
-    .getByRole("option", { name: "Claude Sonnet 4.5", exact: true })
+    .getByRole("option", { name: "Claude Fable 5.1", exact: true })
     .click();
   const key = page.locator("#byok-key");
   await expect(key).toHaveAttribute("type", "password");
@@ -191,9 +192,9 @@ test("local setup, picker keyboard navigation, and paid routing guidance", async
   await page.locator("#local-model").fill("test-model");
   await page.getByLabel("Model", { exact: true }).click();
   await page.getByRole("button", { name: "All", exact: true }).click();
-  await page.getByLabel("Search models").fill("Anthropic Claude Sonnet");
+  await page.getByLabel("Search models").fill("Anthropic Claude Fable");
   await page
-    .getByRole("option", { name: "Anthropic Claude Sonnet 4.5", exact: true })
+    .getByRole("option", { name: "Anthropic Claude Fable 5.1", exact: true })
     .click();
   await expect(page.getByText("Requires key", { exact: true })).toBeVisible();
   await page
@@ -307,6 +308,7 @@ test("other free OpenRouter models require BYOK while NVIDIA is shared", async (
             id: "test-provider/test-model:free",
             name: "Test free model",
             free: true,
+            releaseDate: "2026-09-01",
           },
         ],
       },
@@ -413,7 +415,7 @@ test("320px navigation, BYOK controls, and memo fit the viewport", async ({
   await page.goto("/");
   await page.getByLabel("Model", { exact: true }).click();
   await page
-    .getByRole("option", { name: "Claude Sonnet 4.5", exact: true })
+    .getByRole("option", { name: "Claude Fable 5.1", exact: true })
     .click();
   await expect(page.locator("#byok-key")).toBeVisible();
   expect(
@@ -455,6 +457,7 @@ test("large catalogs stay bounded, keyboard selection works, and placement stays
             id: `test/model-${index}`,
             name: `Test model ${index}`,
             free: false,
+            releaseDate: "2026-09-01",
           })),
         ],
       },
@@ -534,7 +537,7 @@ test("direct OpenAI and Anthropic catalogs use separate client keys", async ({
   await page.locator("#byok-key").fill("fake-openai-key");
   await expect.poll(() => keys.openai).toBe("fake-openai-key");
   await page.getByLabel("Model", { exact: true }).click();
-  await page.getByLabel("Search models").fill("Claude Sonnet");
+  await page.getByLabel("Search models").fill("Claude Fable 5.1");
   await page
     .getByRole("option")
     .filter({ hasText: "Anthropic · Direct" })
@@ -565,6 +568,7 @@ test("Models.dev lists direct provider models before a key is added, with local 
               id: "test-new-openai",
               name: "Test newest OpenAI",
               free: false,
+              releaseDate: "2026-09-01",
               context: 128000,
               images: true,
             },
@@ -574,6 +578,7 @@ test("Models.dev lists direct provider models before a key is added, with local 
               id: "test-new-anthropic",
               name: "Test newest Anthropic",
               free: false,
+              releaseDate: "2026-09-01",
             },
           ],
           nvidia: [
@@ -595,11 +600,13 @@ test("Models.dev lists direct provider models before a key is added, with local 
     exact: true,
   });
   await expect(option).toContainText("OpenAI · Direct · 128k context · Images");
-  expect(
-    await option
-      .locator("img")
-      .evaluate((image) => image.complete && image.naturalWidth > 0),
-  ).toBe(true);
+  await expect
+    .poll(() =>
+      option
+        .locator("img")
+        .evaluate((image) => image.complete && image.naturalWidth > 0),
+    )
+    .toBe(true);
   await option.click();
   await expect(page.getByLabel("Model", { exact: true })).toContainText(
     "Test newest OpenAI",
@@ -634,7 +641,7 @@ test("model release dates rank newer releases above older latest aliases", async
               id: "test-old",
               name: "Test older latest alias",
               free: false,
-              releaseDate: "2025-01-01",
+              releaseDate: "2026-06-01",
             },
             { id: "test-undated", name: "Test undated", free: false },
             {
@@ -654,7 +661,7 @@ test("model release dates rank newer releases above older latest aliases", async
   await page.goto("/");
   await page.getByLabel("Model", { exact: true }).click();
   await page.getByLabel("Search models").fill("test-");
-  await expect(page.getByRole("option")).toHaveCount(3);
+  await expect(page.getByRole("option")).toHaveCount(2);
   await expect(page.getByRole("option").nth(0)).toHaveAttribute(
     "aria-label",
     "Test newest release",
@@ -663,10 +670,9 @@ test("model release dates rank newer releases above older latest aliases", async
     "aria-label",
     "Test older latest alias",
   );
-  await expect(page.getByRole("option").nth(2)).toHaveAttribute(
-    "aria-label",
-    "Test undated",
-  );
+  await expect(
+    page.getByRole("option", { name: "Test undated", exact: true }),
+  ).not.toBeVisible();
   await expect(
     page.getByRole("option").nth(0).getByText("Newest", { exact: true }),
   ).toBeVisible();
@@ -686,13 +692,13 @@ test("Your provider groups OpenAI before Anthropic and orders releases within ea
               id: "test-old-openai",
               name: "Test old OpenAI",
               free: false,
-              releaseDate: "2025-01-01",
+              releaseDate: "2026-06-01",
             },
             {
               id: "test-new-openai",
               name: "Test new OpenAI",
               free: false,
-              releaseDate: "2026-01-01",
+              releaseDate: "2026-07-01",
             },
           ],
           anthropic: [
@@ -744,4 +750,78 @@ test("Your provider groups OpenAI before Anthropic and orders releases within ea
   await expect(page.getByLabel("Model", { exact: true })).toContainText(
     "Test old OpenAI",
   );
+});
+
+test("the hosted picker excludes old, unknown, and future release dates in every group", async ({
+  page,
+}) => {
+  await page.clock.install({ time: new Date("2026-09-12T12:00:00Z") });
+  await page.route("**/api/catalog", (route) =>
+    route.fulfill({
+      json: {
+        catalogs: {
+          openai: [
+            {
+              id: "test-boundary",
+              name: "Test boundary",
+              free: false,
+              releaseDate: "2026-03-16",
+            },
+            {
+              id: "test-too-old",
+              name: "Test too old",
+              free: false,
+              releaseDate: "2026-03-15",
+            },
+            { id: "test-unknown", name: "Test unknown", free: false },
+            {
+              id: "test-future",
+              name: "Test future",
+              free: false,
+              releaseDate: "2026-09-13",
+            },
+          ],
+        },
+      },
+    }),
+  );
+  await page.route("**/api/models?**", (route) =>
+    route.fulfill({ json: { models: [], source: "fallback" } }),
+  );
+  await page.goto("/");
+  await page.getByLabel("Model", { exact: true }).click();
+  await page.getByLabel("Search models").fill("test-");
+  await expect(page.getByRole("option")).toHaveCount(1);
+  await expect(page.getByRole("option")).toHaveAttribute(
+    "aria-label",
+    "Test boundary",
+  );
+  await page
+    .getByRole("button", { name: "Your provider", exact: true })
+    .click();
+  await expect(page.getByRole("option")).toHaveCount(1);
+  await page.getByLabel("Search models").fill("");
+  await page.getByRole("button", { name: "Ready to use", exact: true }).click();
+  await expect(
+    page.getByRole("option", { name: /Offline council/ }),
+  ).toBeVisible();
+  await page.getByLabel("Search models").fill("Nemotron 3 Super");
+  await expect(page.getByRole("option")).toHaveCount(2);
+  await page
+    .getByRole("option", { name: /^Nemotron 3 Super \(free\)/ })
+    .click();
+  await expect(page.getByLabel("Model", { exact: true })).toContainText(
+    "Nemotron 3 Super",
+  );
+  await expect(
+    page.getByRole("textbox", { name: "API key", exact: true }),
+  ).toHaveCount(0);
+  await page.getByLabel("Model", { exact: true }).click();
+  await page.getByLabel("Search models").fill("");
+  await page
+    .getByRole("button", { name: "Local / advanced", exact: true })
+    .click();
+  await expect(
+    page.getByRole("option", { name: "Ollama", exact: true }),
+  ).toBeVisible();
 });

@@ -10,7 +10,12 @@ import {
 
 const catalogResponseSchema = z.object({
   models: z.array(
-    z.object({ id: z.string(), name: z.string(), free: z.boolean() }),
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      free: z.boolean(),
+      releaseDate: z.iso.date().optional(),
+    }),
   ),
   source: z.enum(["live", "fallback"]).catch("fallback"),
 });

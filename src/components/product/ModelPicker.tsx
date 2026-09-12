@@ -4,6 +4,7 @@ import { Popover } from "@base-ui/react/popover";
 import { Check, ChevronDown, Search, X } from "lucide-react";
 import {
   pickerProviders,
+  isRecentModel,
   popularModels,
   providerMeta,
   providerName,
@@ -93,9 +94,12 @@ export const ModelPicker = ({
                 ]
               : provider === connection.provider && authenticatedCatalog
                 ? models.map((model) => ({
-                    ...catalogs[provider]?.find(
+                    ...(catalogs[provider]?.find(
                       (entry) => entry.id === model.id,
-                    ),
+                    ) ??
+                      popularModels(provider).find(
+                        (entry) => entry.id === model.id,
+                      )),
                     ...model,
                   }))
                 : (catalogs[provider] ??
@@ -114,6 +118,18 @@ export const ModelPicker = ({
         );
 
         return catalog.flatMap((model) => {
+          const pinnedFreeModel =
+            usesSharedNvidiaRoute(provider, model.id) &&
+            model.id === "nvidia/nemotron-3-super-120b-a12b:free";
+
+          if (
+            provider !== "demo" &&
+            !local &&
+            !pinnedFreeModel &&
+            !isRecentModel(model)
+          )
+            return [];
+
           const family =
             provider === "demo" || usesSharedNvidiaRoute(provider, model.id)
               ? "ready"
@@ -443,8 +459,9 @@ export const ModelPicker = ({
               )}
             </div>
             <p className="picker-footnote">
-              Shared access covers free NVIDIA models via OpenRouter. Other
-              hosted models require your key.
+              Hosted models released in the last 180 days, plus free Nemotron 3
+              Super. Shared access covers free NVIDIA models via OpenRouter.
+              Other hosted models require your key.
             </p>
           </Popover.Popup>
         </Popover.Positioner>
