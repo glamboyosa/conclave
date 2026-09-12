@@ -12,6 +12,7 @@
     "playwright.config.ts",
     "src/engine.ts",
     "src/council.ts",
-    "src/providers.ts"
+    "src/providers.ts",
+    "server/**/*.ts"
   ]
 }

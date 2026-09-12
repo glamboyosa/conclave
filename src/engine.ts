@@ -17,6 +17,7 @@ export type RunResult = {
   actions: string[];
   assumptions: string[];
   mode?: "local" | "live";
+  execution?: { provider: string; model: string };
 };
 
 const firstSentence = (brief: string) =>
@@ -42,49 +43,56 @@ export function buildDemoRun(brief: string): RunResult {
 
   return {
     title: subject.length > 68 ? `${subject.slice(0, 65)}…` : subject,
-    verdict: `Run a narrow, reversible pilot before committing fully to ${subject.toLowerCase()}. Define the stop condition now; let observed behavior—not enthusiasm—earn the next investment.`,
+    verdict:
+      "Try a small pilot before committing more time or money. Agree on a success measure and a stop condition before starting.",
     confidence,
     agents: [
       {
         id: "optimist",
-        thesis: "There is enough signal to test now",
-        detail: `The brief points to a concrete change with learnable demand. A deliberately small version can turn the biggest unknown into evidence without waiting for perfect certainty.`,
+        thesis: "A small test could answer the main question",
+        detail: `Test the part of the proposal you are least sure about. Keep the test small enough to stop if the results are poor.`,
         signal: "Upside case",
         score: 82,
       },
       {
         id: "analyst",
         thesis: market
-          ? "The decision lacks a measurable demand threshold"
-          : "The success condition is underspecified",
-        detail: `The proposal names an ambition but not the number that would justify continuing. Cost, adoption, and time-to-value need one shared scorecard.`,
+          ? "Define how much demand would justify continuing"
+          : "Define what success would look like",
+        detail: `Choose a result you can measure, set a target, and review it on a specific date. Include the cost of running the test.`,
         signal: "Evidence gap",
         score: 64,
       },
       {
         id: "skeptic",
         thesis: urgency
-          ? "Urgency may be disguising an irreversible bet"
-          : "The hidden cost is operational drag",
-        detail: `The likely failure mode is not that the idea cannot work; it is that ownership, maintenance, and exit criteria remain implicit until after commitment.`,
+          ? "A deadline could rush the commitment"
+          : "Check who will maintain the work",
+        detail: `Name who owns the test and who will handle the ongoing work. Set a budget limit and a way to exit before starting.`,
         signal: "Primary risk",
         score: 71,
       },
     ],
     tensions: [
-      "Speed to learning vs. quality of the first impression",
-      "Strategic optionality vs. operational focus",
+      "A quick test may give users an unfinished experience",
+      "Running the pilot takes time away from existing work",
     ],
     actions: [
       "Name one owner and one decision date",
-      "Define a success metric and a kill metric",
+      "Set a success target and a stop condition",
       "Test with 5 real users before expanding scope",
     ],
     assumptions: [
       "A pilot can be made reversible",
       "A decision-maker is available at the review date",
-      "Useful feedback can be observed within one cycle",
+      "The test can produce useful feedback before the review date",
     ],
     mode: "local",
   };
 }
+
+export type CouncilEvent =
+  | { type: "stage"; stage: "perspectives" | "chair" }
+  | { type: "perspective"; id: AgentId }
+  | { type: "result"; result: RunResult }
+  | { type: "error"; error: string };

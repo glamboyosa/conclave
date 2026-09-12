@@ -69,7 +69,14 @@ function findingAgent(model: LanguageModel, instructions: string) {
 export async function runModelCouncil(
   model: LanguageModel,
   brief: string,
+  onProgress?: (
+    event:
+      | { type: "stage"; stage: "perspectives" | "chair" }
+      | { type: "perspective"; id: AgentId },
+  ) => void,
 ): Promise<RunResult> {
+  onProgress?.({ type: "stage", stage: "perspectives" });
+
   const findings = await Promise.all(
     roles.map(async ({ id, instructions }) => {
       const agent = findingAgent(model, instructions);
@@ -78,9 +85,13 @@ export async function runModelCouncil(
         prompt: `Analyze this decision brief:\n\n<decision_brief>\n${brief}\n</decision_brief>`,
       });
 
+      onProgress?.({ type: "perspective", id });
+
       return { id, ...output } satisfies AgentFinding;
     }),
   );
+
+  onProgress?.({ type: "stage", stage: "chair" });
 
   const chair = new ToolLoopAgent({
     model,

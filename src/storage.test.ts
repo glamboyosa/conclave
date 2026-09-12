@@ -6,7 +6,9 @@ beforeEach(() => localStorage.clear());
 
 describe("decision library", () => {
   it("saves decisions locally and exports a complete Markdown transcript", () => {
-    const brief = "Should we run a small reversible pilot before committing the team?";
+    const brief =
+      "Should we run a small reversible pilot before committing the team?";
+
     const record = saveDecision(brief, buildDemoRun(brief));
     const markdown = decisionMarkdown(record);
 
@@ -18,3 +20,19 @@ describe("decision library", () => {
   });
 });
 
+it("strips secret-bearing extra fields from records before saving", () => {
+  const brief = "Should we pilot a new decision workflow with our test team?";
+
+  const result = {
+    ...buildDemoRun(brief),
+    apiKey: "fake-test-secret",
+    connection: { apiKey: "fake-test-secret" },
+  };
+
+  const record = saveDecision(brief, result);
+  expect(JSON.stringify(record)).not.toContain("fake-test-secret");
+  expect(localStorage.getItem("conclave:library")).not.toContain(
+    "fake-test-secret",
+  );
+  expect(decisionMarkdown(record)).not.toContain("fake-test-secret");
+});

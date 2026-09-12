@@ -1,89 +1,56 @@
 # Conclave
 
-Conclave is a local web app that turns a decision brief into three independent positions and a decision memo.
+Conclave turns a decision brief into independent Opportunity, Evidence, and Risk positions, followed by a Chair recommendation.
 
-The default model is NVIDIA Nemotron 3 Super on OpenRouter's free tier, covered by a shared key — nothing to configure. A single grouped model picker on the decision page switches providers (Anthropic, OpenAI, Google, Kimi, DeepSeek, xAI, Groq, Mistral, NVIDIA) with live model catalogs and bring-your-own-key support through Vercel AI SDK. An offline, deterministic council runs with no credentials and no network.
-
-## Install and run
+## Run
 
 ```bash
 pnpm install
 pnpm dev
 ```
 
-Open `http://localhost:4173`. A project-local Node 22 binary runs the scripts, so the global Node version is not changed.
+Open `http://localhost:4173`. Scripts use the project-local Node 22 binary. Installation writes dependencies to `node_modules/`.
 
-The install writes dependencies to `node_modules/`. Completed decisions are saved in this browser's local storage and shown in Library. The library keeps the 50 most recent records. It stores the brief and memo, but never the API key. There is no server database, account, sync, or analytics.
-
-Browser storage is not encrypted. Anyone with access to the same browser profile can read it, and clearing site data removes it. Export records you need before clearing browser data.
+For shared access to free NVIDIA models through OpenRouter, set `OPENROUTER_API_KEY` in `.env.local`. Keep that file private. The application checks whether shared access is configured without exposing the key. Without it, choose Offline or enter your own provider key.
 
 ## Use
 
-Enter at least 20 characters describing the decision, constraints, and desired outcome. Select **Convene council** or press <kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>Enter</kbd>.
+Write 20–4,000 characters describing the decision, stakes, constraints, and unknowns. Select **Convene council** or press **Cmd/Ctrl + Enter**. The textarea grows as you write.
 
-A completed run contains opportunity, evidence, and risk positions; a chair recommendation; unresolved assumptions; and three next actions. Without an API key, the result is labeled **Local council** and uses only rules in [`src/engine.ts`](src/engine.ts). It does not claim external research.
+The searchable model picker groups shared/offline access, hosted providers, and local connections. Settings uses the same connection controls. Catalog loading, failure, retry, and unavailable selections are shown before a run.
 
-Live runs use three independent AI SDK agents in parallel, followed by a chair agent. See [Council design](docs/agent-design.md) for the role contracts, security boundary, and design sources.
+- **OpenRouter:** shared access covers only NVIDIA models with `nvidia/` IDs ending in `:free`. Every other OpenRouter model requires your own key, including other free models.
+- **NVIDIA:** runs through OpenRouter and shares its in-memory key.
+- **Hosted BYOK:** Anthropic, OpenAI, Google, Kimi/Moonshot, DeepSeek, xAI, Groq, and Mistral. Entering a key fetches the provider catalog.
+- **Local/advanced:** Ollama, LM Studio, or an OpenAI-compatible endpoint. Enter the exact model ID manually. Local endpoints must use loopback addresses; remote custom endpoints require HTTPS. Models must support structured output.
+- **Offline:** deterministic format preview; convening makes no model or network calls. It is not an AI assessment.
 
-Use **Export Markdown** on a memo or Library record to download the brief, independent positions, chair recommendation, actions, and assumptions as one `.md` transcript.
+Live execution reports actual perspective completions, then Chair synthesis. Results include support from the brief, disagreements, actions, assumptions, and the original brief. Support scores are self-assessments, not calibrated probabilities. There are no external research tools.
 
-## Model connections
+## Data and keys
 
-The **model picker** on the decision page is one dropdown, grouped by provider: the active provider's group lists its live catalog, the others list popular models, and — for hosted providers — a key field sits alongside.
+Keys are masked by default, can be revealed or forgotten, and stay only in tab memory. Reloading or closing clears them. They travel to the Conclave server for catalogs and runs, then to the selected provider. The app does not save them in browser storage, exports, logs, or analytics. Use HTTPS beyond localhost.
 
-- **OpenRouter** is the default. The free `nvidia/nemotron-3-super-120b-a12b:free` route runs on the shared key from `.env.local`, so it works out of the box. The shared key covers `:free` models only; add your own OpenRouter key to run paid catalog models.
-- **NVIDIA** runs through OpenRouter — free routes on the shared key, paid routes with your own OpenRouter key. Its catalog is the OpenRouter list filtered to `nvidia/*` models.
-- **Anthropic, OpenAI, Google, Kimi (Moonshot), DeepSeek, xAI, Groq, Mistral** are bring-your-own-key. Paste a key and the picker loads the provider's live model list; without a key it shows a short list of popular models.
-- **Offline** is the deterministic local council — no key, no network.
+Briefs, memos, and provider/model metadata are saved in unencrypted browser local storage. Library searches and reopens the most recent 50 decisions. Copy or export Markdown for records you need to retain. Clearing site data deletes them; there is no account, database, or cloud sync. Connection preferences exclude keys and credential-bearing endpoint URLs.
 
-**Settings** holds exactly one control: a dropdown of popular models. It never asks you to type a model ID or an endpoint.
-
-The shared OpenRouter key lives in `.env.local`:
-
-```dotenv
-OPENROUTER_API_KEY=sk-or-...
-CONCLAVE_SITE_URL=http://localhost:4173
-```
-
-Your own keys live only in React state for the current tab and travel through the local middleware with each run. The app does not write them to local storage, session storage, files, or logs. Reloading clears them. Use HTTPS when deploying Conclave beyond localhost.
-
-The `/api/run` endpoint still accepts `ollama`, `lmstudio`, and `custom` OpenAI-compatible connections (loopback or HTTPS only), but the picker focuses on the hosted providers above.
-
-## Verify
+## Verify and preview
 
 ```bash
 pnpm check
+pnpm preview
 ```
 
-Current output from the full check:
-
-```text
-Test Files  3 passed (3)
-Tests       9 passed (9)
-28 passed
-```
-
-The command runs Oxlint with the vendored anti-slop rules, ESLint, Vitest, a production build, and Playwright against desktop Chromium and a mobile WebKit viewport.
-
-Install the Playwright browsers once if missing:
-
-```bash
-./node_modules/node/bin/node ./node_modules/@playwright/test/cli.js install chromium webkit
-```
-
-This writes browser binaries to Playwright's user cache outside the repository.
+Verification runs lint, Vitest, TypeScript, a build, and desktop Chromium/mobile WebKit E2E checks. Preview serves the build and the same API handlers. Install missing browsers with `pnpm exec playwright install chromium webkit`; binaries go to the shared user cache.
 
 <details>
 <summary>Architecture</summary>
 
-- React 19 and TypeScript render a single-screen state machine.
-- Tailwind CSS 4 and registry-installed shadcn/ui source provide the UI layer.
-- Motion handles agent-card entrances and respects reduced-motion preferences.
-- Vite middleware owns `POST /api/run`, validates every request with Zod, and uses AI SDK structured output.
-- Vitest covers engine and component behavior. Playwright covers submission, validation, persistence, keyboard use, overflow, and API rejection.
+React/Vite renders the application. Product components live in `src/components/product/`; catalog state lives in `src/hooks/`. Zod validates requests, results, and stored records. `server/api.ts` attaches API handlers to Vite development and preview servers. AI SDK runs three agents concurrently and starts the Chair after their validated outputs complete. See [Council design](docs/agent-design.md).
+
+Preview is for local verification. Public hosting still needs a production server/deployment setup; static hosting alone cannot serve the API.
 
 </details>
 
 ## Remove
 
-Delete `conclave/` to remove the app and its dependencies. Clear site data for `localhost:4173` to remove a saved memo. Playwright browser binaries live in its user cache and may be shared by other projects.
+Stop the server, delete the project directory, and clear its browser site data. Playwright binaries are shared with other projects; deleting Conclave does not remove them.

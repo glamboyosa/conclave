@@ -21,7 +21,17 @@ export type ModelConnection = {
   apiKey: string;
 };
 
-export type CatalogModel = { id: string; name: string; free: boolean };
+export type CatalogModel = {
+  id: string;
+  name: string;
+  free: boolean;
+  context?: number;
+  images?: boolean;
+  reasoning?: boolean;
+  releaseDate?: string;
+  inputCost?: number;
+  outputCost?: number;
+};
 
 export type ProviderMeta = {
   id: ProviderId;
@@ -41,9 +51,17 @@ export type ProviderMeta = {
   popular: CatalogModel[];
 };
 
-const free = (id: string, name: string): CatalogModel => ({ id, name, free: true });
+const free = (id: string, name: string): CatalogModel => ({
+  id,
+  name,
+  free: true,
+});
 
-const paid = (id: string, name: string): CatalogModel => ({ id, name, free: false });
+const paid = (id: string, name: string): CatalogModel => ({
+  id,
+  name,
+  free: false,
+});
 
 export const providerMeta: Record<ProviderId, ProviderMeta> = {
   demo: {
@@ -212,6 +230,9 @@ export const pickerProviders: ProviderId[] = [
   "groq",
   "mistral",
   "nvidia",
+  "ollama",
+  "lmstudio",
+  "custom",
 ];
 
 export const defaultConnection: ModelConnection = {
@@ -233,6 +254,14 @@ export function keyOptional(provider: ProviderId) {
   return providerMeta[provider]?.key === "optional";
 }
 
+export const usesSharedNvidiaRoute = (
+  provider: ProviderId,
+  model: string,
+): boolean =>
+  (provider === "openrouter" || provider === "nvidia") &&
+  model.startsWith("nvidia/") &&
+  model.endsWith(":free");
+
 /** In-memory key slot — NVIDIA shares OpenRouter's key, since NVIDIA runs through OpenRouter. */
 export function keySlot(provider: ProviderId): ProviderId {
   return provider === "nvidia" ? "openrouter" : provider;
@@ -243,6 +272,30 @@ export function popularModels(provider: ProviderId): CatalogModel[] {
 }
 
 export function parseProvider(value: string): ProviderId {
-  // SAFETY: the `in` operator narrows `value` to a key of providerMeta, which is exactly ProviderId.
-  return value in providerMeta ? (value as ProviderId) : "openrouter";
+  // SAFETY: an own-property check restricts the value to the declared provider IDs.
+  return Object.prototype.hasOwnProperty.call(providerMeta, value)
+    ? (value as ProviderId)
+    : "openrouter";
 }
+
+/** Endpoint preferences may be saved only when the URL contains no credentials or query data. */
+export const persistableEndpoint = (value: string): string => {
+  if (!value) return "";
+
+  try {
+    const url = new URL(value);
+
+    if (
+      url.username ||
+      url.password ||
+      url.search ||
+      url.hash ||
+      !["http:", "https:"].includes(url.protocol)
+    )
+      return "";
+
+    return value;
+  } catch {
+    return "";
+  }
+};

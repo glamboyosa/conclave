@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "./node_modules/node/bin/node ./node_modules/vite/bin/vite.js",
+    "preview": "./node_modules/node/bin/node ./node_modules/vite/bin/vite.js preview",
     "build": "./node_modules/node/bin/node ./node_modules/typescript/lib/tsc.js -b && ./node_modules/node/bin/node ./node_modules/vite/bin/vite.js build",
-    "lint": "./node_modules/node/bin/node ./node_modules/oxlint/bin/oxlint src vite.config.ts playwright.config.ts && ./node_modules/node/bin/node ./node_modules/eslint/bin/eslint.js src vite.config.ts playwright.config.ts",
+    "lint": "./node_modules/node/bin/node ./node_modules/oxlint/bin/oxlint src server vite.config.ts playwright.config.ts && ./node_modules/node/bin/node ./node_modules/eslint/bin/eslint.js src server vite.config.ts playwright.config.ts",
     "test": "./node_modules/node/bin/node ./node_modules/vitest/vitest.mjs run",
     "test:watch": "./node_modules/node/bin/node ./node_modules/vitest/vitest.mjs",
     "test:e2e": "./node_modules/node/bin/node ./node_modules/@playwright/test/cli.js test",
@@ -30,7 +31,6 @@
     "clsx": "2.1.1",
     "cn": "0.2.6",
     "lucide-react": "1.44.0",
-    "motion": "12.23.12",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "tailwind-merge": "3.3.1",

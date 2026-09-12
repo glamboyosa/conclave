@@ -31,7 +31,7 @@ describe("decision room", () => {
       await screen.findByRole("option", { name: "Claude Sonnet 4.5" }),
     );
     await userEvent.type(
-      screen.getByLabelText(/API key/),
+      screen.getByLabelText(/API key/, { selector: "input" }),
       "temporary-secret-value",
     );
 
@@ -76,10 +76,7 @@ describe("decision room", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Add your Anthropic API key",
     );
-    expect(fetchMock).not.toHaveBeenCalledWith(
-      "/api/run",
-      expect.anything(),
-    );
+    expect(fetchMock).not.toHaveBeenCalledWith("/api/run", expect.anything());
   });
   it("runs the council and renders the memo", async () => {
     const memo = JSON.stringify({
@@ -136,13 +133,17 @@ describe("decision room", () => {
     expect(
       await screen.findByText("Pilot it.", {}, { timeout: 2500 }),
     ).toBeInTheDocument();
-    expect(screen.getAllByText(/Local council/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Offline preview/i).length).toBeGreaterThan(0);
   });
   it("runs free NVIDIA models on the shared OpenRouter key", async () => {
     vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("stop"));
 
     render(<App />);
     await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.type(
+      screen.getByLabelText("Search models"),
+      "Nemotron 3 Super 120B",
+    );
     await userEvent.click(
       await screen.findByRole("option", { name: /Nemotron 3 Super 120B/ }),
     );
@@ -150,24 +151,33 @@ describe("decision room", () => {
     expect(localStorage.getItem("conclave:connection")).toContain(
       '"provider":"nvidia"',
     );
-    expect(screen.getByLabelText(/OpenRouter API key/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "API key" }));
+    expect(
+      screen.getByLabelText(/OpenRouter API key/, { selector: "input" }),
+    ).toBeInTheDocument();
     expect(screen.getByText(/shared OpenRouter key/)).toBeInTheDocument();
 
     await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.type(
+      screen.getByLabelText("Search models"),
+      "Nemotron 3 Nano 30B",
+    );
     await userEvent.click(
       await screen.findByRole("option", { name: "Nemotron 3 Nano 30B" }),
     );
 
     expect(
-      screen.getByText(/shared key covers free models only/),
+      screen.getByText(/shared key covers free NVIDIA models only/),
     ).toBeInTheDocument();
   });
-  it("switches models from the settings dropdown only", async () => {
+  it("uses the shared connection controls in settings", async () => {
     vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("stop"));
 
     render(<App />);
-    await userEvent.click(screen.getAllByRole("button", { name: "Settings" })[0]);
-    await userEvent.click(screen.getByLabelText("Popular model"));
+    await userEvent.click(
+      screen.getAllByRole("button", { name: "Settings" })[0],
+    );
+    await userEvent.click(screen.getByLabelText("Model"));
     await userEvent.click(
       await screen.findByRole("option", { name: "Claude Opus 4.5" }),
     );
@@ -178,4 +188,80 @@ describe("decision room", () => {
     expect(saved).not.toContain("apiKey");
     expect(screen.queryByLabelText("API endpoint")).not.toBeInTheDocument();
   });
+});
+
+it("blocks paid OpenRouter routes before sending a run", async () => {
+  const fetchMock = vi
+    .spyOn(globalThis, "fetch")
+    .mockRejectedValue(new Error("no catalog"));
+
+  render(<App />);
+  await userEvent.click(screen.getByLabelText("Model"));
+  await userEvent.type(
+    screen.getByLabelText("Search models"),
+    "Anthropic Claude Sonnet",
+  );
+  await userEvent.click(
+    screen.getByRole("option", { name: "Anthropic Claude Sonnet 4.5" }),
+  );
+  await userEvent.type(
+    screen.getByLabelText("Decision brief"),
+    "Should we pilot this product with five test customers?",
+  );
+  await userEvent.click(
+    screen.getByRole("button", { name: /convene council/i }),
+  );
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "Add your OpenRouter API key",
+  );
+  expect(fetchMock).not.toHaveBeenCalledWith("/api/run", expect.anything());
+});
+
+it("shares the in-memory OpenRouter key with NVIDIA and clears it on reload", async () => {
+  vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("no catalog"));
+  const { unmount } = render(<App />);
+  await userEvent.click(screen.getByRole("button", { name: "API key" }));
+  await userEvent.type(
+    screen.getByLabelText(/API key/, { selector: "input" }),
+    "fake-session-key",
+  );
+  await userEvent.click(screen.getByLabelText("Model"));
+  await userEvent.type(
+    screen.getByLabelText("Search models"),
+    "Nemotron 3 Super 120B",
+  );
+  await userEvent.click(
+    screen.getByRole("option", { name: /Nemotron 3 Super 120B/ }),
+  );
+  expect(screen.getByLabelText(/API key/, { selector: "input" })).toHaveValue(
+    "fake-session-key",
+  );
+  expect(JSON.stringify(localStorage)).not.toContain("fake-session-key");
+  expect(JSON.stringify(sessionStorage)).not.toContain("fake-session-key");
+  unmount();
+  render(<App />);
+  await userEvent.click(screen.getByRole("button", { name: "API key" }));
+  expect(screen.getByLabelText(/API key/, { selector: "input" })).toHaveValue(
+    "",
+  );
+});
+
+it("does not persist credential-bearing endpoint URLs", async () => {
+  vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("no catalog"));
+  render(<App />);
+  await userEvent.click(screen.getByLabelText("Model"));
+  await userEvent.type(
+    screen.getByLabelText("Search models"),
+    "OpenAI-compatible",
+  );
+  await userEvent.click(
+    screen.getByRole("option", { name: "OpenAI-compatible" }),
+  );
+  await userEvent.type(
+    screen.getByLabelText("API endpoint"),
+    "https://example.com/v1?key=fake-url-secret",
+  );
+  expect(localStorage.getItem("conclave:connection")).not.toContain(
+    "fake-url-secret",
+  );
 });

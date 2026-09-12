@@ -1,3 +1,5 @@
+import { z } from "zod";
+import { resultSchema } from "./schemas";
 import type { RunResult } from "./engine";
 
 export type DecisionRecord = {
@@ -19,7 +21,16 @@ export function loadDecisionLibrary(): DecisionRecord[] {
 
     if (!Array.isArray(records)) throw new Error("Invalid decision library.");
 
-    return records;
+    return z
+      .array(
+        z.object({
+          id: z.string(),
+          createdAt: z.string(),
+          brief: z.string(),
+          result: resultSchema,
+        }),
+      )
+      .parse(records);
   } catch {
     localStorage.removeItem(libraryKey);
 
@@ -29,7 +40,14 @@ export function loadDecisionLibrary(): DecisionRecord[] {
 
 export function saveDecision(brief: string, result: RunResult): DecisionRecord {
   const createdAt = new Date().toISOString();
-  const record = { id: createdAt, createdAt, brief, result };
+
+  const record = {
+    id: createdAt,
+    createdAt,
+    brief,
+    result: resultSchema.parse(result),
+  };
+
   const records = [record, ...loadDecisionLibrary()].slice(0, 50);
 
   localStorage.setItem(libraryKey, JSON.stringify(records));
@@ -45,7 +63,8 @@ export function decisionMarkdown(record: DecisionRecord) {
     )
     .join("\n\n");
 
-  const list = (values: string[]) => values.map((value) => `- ${value}`).join("\n");
+  const list = (values: string[]) =>
+    values.map((value) => `- ${value}`).join("\n");
 
-  return `# ${record.result.title}\n\nCreated: ${record.createdAt}\nModel mode: ${record.result.mode}\n\n## Decision brief\n\n${record.brief}\n\n## Chair's call\n\n${record.result.verdict}\n\nConfidence: ${record.result.confidence}/100\n\n## Independent positions\n\n${positions}\n\n## Productive tensions\n\n${list(record.result.tensions)}\n\n## Next moves\n\n${list(record.result.actions)}\n\n## Assumptions\n\n${list(record.result.assumptions)}\n`;
+  return `# ${record.result.title}\n\nCreated: ${record.createdAt}\nModel mode: ${record.result.mode}${record.result.execution ? `\nProvider: ${record.result.execution.provider}\nModel: ${record.result.execution.model}` : ""}\n\n## Decision brief\n\n${record.brief}\n\n## Chair's call\n\n${record.result.verdict}\n\nConfidence: ${record.result.confidence}/100\n\n## Independent positions\n\n${positions}\n\n## Productive tensions\n\n${list(record.result.tensions)}\n\n## Next moves\n\n${list(record.result.actions)}\n\n## Assumptions\n\n${list(record.result.assumptions)}\n`;
 }
