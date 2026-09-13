@@ -187,7 +187,8 @@ export const ProviderConnection = ({
           </div>
           <p>
             Held only in this tab’s memory. Cleared on reload or close. Sent to
-            the Conclave server for catalogs and runs; never saved or exported.
+            the Conclave server over HTTPS on hosted deployments; never saved
+            with decisions or included in exports.
           </p>
           <div className="key-actions">
             {meta.keyUrl && (

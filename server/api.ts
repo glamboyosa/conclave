@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { describeRunError } from "./run-error.js";
+import { describeRunError, redactSecrets } from "./run-error.js";
 import { createModelsDevCatalog } from "./models-dev.js";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createDeepSeek } from "@ai-sdk/deepseek";
@@ -685,19 +685,18 @@ export const createApiHandler = (
       const model = buildModel(connection, env);
       const runId = randomUUID();
       res.setHeader("X-Conclave-Run-ID", runId);
+      const secrets = [connection.apiKey, env.OPENROUTER_API_KEY ?? ""];
+      const safeModel = redactSecrets(connection.model, secrets);
       let stage = "perspectives";
 
       const failureMessage = (cause: unknown) => {
-        const reason = describeRunError(cause, [
-          connection.apiKey,
-          env.OPENROUTER_API_KEY ?? "",
-        ]);
+        const reason = describeRunError(cause, secrets);
 
-        const message = `${providerMeta[connection.provider].name} / ${connection.model} failed during ${stage === "chair" ? "Chair synthesis" : "assessments"}: ${reason} Run ID: ${runId}`;
+        const message = `${providerMeta[connection.provider].name} / ${safeModel} failed during ${stage === "chair" ? "Chair synthesis" : "assessments"}: ${reason} Run ID: ${runId}`;
         console.error("[Conclave run failed]", {
           runId,
           provider: connection.provider,
-          model: connection.model,
+          model: safeModel,
           stage,
           reason,
           errorType: cause instanceof Error ? cause.name : "UnknownError",
@@ -769,6 +768,8 @@ export const createApiHandler = (
   });
 
   return async (req: ApiRequest, res: ServerResponse) => {
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Referrer-Policy", "no-referrer");
     const path = new URL(req.url ?? "/", "http://localhost").pathname;
     const handler = routes.get(path);
 

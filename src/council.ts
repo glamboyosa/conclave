@@ -178,7 +178,11 @@ export const discussDecision = async (
   let text = "";
 
   if (onDelta) {
-    const result = streamText(options);
+    const result = streamText({
+      ...options,
+      // fullStream propagates errors to the API handler, which redacts credentials before logging.
+      onError: () => undefined,
+    });
 
     for await (const part of result.fullStream) {
       if (part.type === "error") throw part.error;

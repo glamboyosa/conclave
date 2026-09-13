@@ -36,3 +36,10 @@ it("renders structured Markdown and keeps HTML and unsafe links inactive", () =>
   );
   expect(container.querySelector("script")).toBeNull();
 });
+
+it("does not automatically fetch images embedded in user or model Markdown", () => {
+  const { container } = render(<DiscussionMarkdown content="![Test image](https://test.invalid/tracker?brief=private-test-context)" />);
+
+  expect(container.querySelector("img")).toBeNull();
+  expect(screen.getByText("[Image: Test image]")).toBeInTheDocument();
+});

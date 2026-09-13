@@ -49,3 +49,20 @@ it("distinguishes exhausted credits from a transient HTTP 429 rate limit", () =>
   expect(message).toContain("billing");
   expect(message).not.toContain("Try again shortly");
 });
+
+it("redacts trimmed and URL-encoded non-OpenAI keys from provider errors", () => {
+  const key = "fake-secret/with+symbols=";
+
+  const error = new APICallError({
+    message: `Rejected token ${key}; encoded=${encodeURIComponent(key)}`,
+    url: "https://test.invalid",
+    requestBodyValues: {},
+    statusCode: 401,
+  });
+
+  const message = describeRunError(error, [`  ${key}  `]);
+
+  expect(message).not.toContain(key);
+  expect(message).not.toContain(encodeURIComponent(key));
+  expect(message).toContain("[redacted]");
+});

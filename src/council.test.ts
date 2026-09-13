@@ -209,3 +209,34 @@ it("streams follow-up text through the installed provider interface", async () =
   expect(updates).toEqual(["Keep ", "the pilot small."]);
   expect(JSON.stringify(model.doStreamCalls[0].prompt)).toContain(brief);
 });
+
+it("propagates streaming provider failures without the SDK logging the raw error", async () => {
+  const rawError = new APICallError({
+    message: "Provider rejected fake-private-key",
+    url: "https://test.invalid",
+    requestBodyValues: { privateBrief: "Fake private test context" },
+    statusCode: 401,
+  });
+
+  const model = new MockLanguageModelV4({
+    doStream: async () => ({
+      stream: new ReadableStream({
+        start(controller) {
+          controller.enqueue({ type: "error", error: rawError });
+          controller.close();
+        },
+      }),
+    }),
+  });
+
+  const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+  const brief = "Should our test team run a bounded pilot?";
+
+  try {
+    await expect(discussDecision(model, brief, buildDemoRun(brief),
+      [{ role: "user", content: "A test follow-up" }], () => undefined)).rejects.toBe(rawError);
+    expect(log).not.toHaveBeenCalled();
+  } finally {
+    log.mockRestore();
+  }
+});
