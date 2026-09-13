@@ -4,7 +4,6 @@ import { z } from "zod";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   BookOpen,
-  Command,
   FileText,
   Plus,
   RotateCcw,
@@ -22,6 +21,7 @@ import { CouncilResults } from "./components/product/CouncilResults";
 import { DecisionLibrary } from "./components/product/DecisionLibrary";
 import { DecisionComposer } from "./components/product/DecisionComposer";
 import { ProviderConnection } from "./components/product/ProviderConnection";
+import { ConclaveMark } from "./components/product/ConclaveMark";
 import { CouncilStatus } from "./components/product/CouncilStatus";
 import { resultSchema } from "./schemas";
 import { readCouncilResponse } from "./run-client";
@@ -468,9 +468,7 @@ export default function App() {
     <div className={`shell ${sidebarOpen ? "" : "sidebar-collapsed"}`}>
       <aside className="sidebar">
         <div className="brand">
-          <span className="brand-mark">
-            <Command size={16} />
-          </span>
+          <ConclaveMark />
           <span>Conclave</span>
         </div>
         <button className="new-run" onClick={reset}>
@@ -541,6 +539,7 @@ export default function App() {
           >
             <PanelLeft size={18} />
           </button>
+          <ConclaveMark className="mobile-brand-mark" />
           <span className="workspace-title">
             {view === "decision"
               ? phase === "done" && result

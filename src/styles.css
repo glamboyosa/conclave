@@ -156,9 +156,32 @@ a {
   font-size: 15px;
   font-weight: 600;
 }
-.brand-mark {
-  display: grid;
-  place-items: center;
+.conclave-mark {
+  display: block;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.conclave-mark img {
+  display: block;
+  width: 96px;
+  height: 32px;
+  max-width: none;
+  image-rendering: pixelated;
+  animation: conclave-flame 900ms steps(3, end) infinite;
+}
+.conclave-mark img[data-paused="true"] {
+  animation-play-state: paused;
+}
+.mobile-brand-mark {
+  display: none;
+}
+@keyframes conclave-flame {
+  to { transform: translateX(-100%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .conclave-mark img { animation: none; }
 }
 .new-run {
   display: flex;
@@ -1129,6 +1152,9 @@ details ul {
   }
   main {
     grid-column: 1;
+  }
+  .mobile-brand-mark {
+    display: block;
   }
   .sidebar-toggle {
     display: none;
