@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Download, FileText, Plus, Search } from "lucide-react";
+import { Download, FileText, Plus, Search, Trash2 } from "lucide-react";
 import { Button } from "../ui/button";
 import type { DecisionRecord } from "../../storage";
 
@@ -8,6 +8,7 @@ type Props = {
   onOpen: (record: DecisionRecord) => void;
   onExport: (record: DecisionRecord) => void;
   onNew: () => void;
+  onDelete: (record: DecisionRecord) => void;
 };
 
 export const DecisionLibrary = ({
@@ -15,6 +16,7 @@ export const DecisionLibrary = ({
   onOpen,
   onExport,
   onNew,
+  onDelete,
 }: Props) => {
   const [query, setQuery] = useState("");
 
@@ -59,13 +61,22 @@ export const DecisionLibrary = ({
                 <p>{record.brief}</p>
                 <small>{record.result.verdict}</small>
               </button>
-              <Button
-                variant="ghost"
-                aria-label={`Export ${record.result.title} as Markdown`}
-                onClick={() => onExport(record)}
-              >
-                <Download data-icon="inline-start" /> Markdown
-              </Button>
+              <div className="library-actions">
+                <Button
+                  variant="ghost"
+                  aria-label={`Export ${record.result.title} as Markdown`}
+                  onClick={() => onExport(record)}
+                >
+                  <Download data-icon="inline-start" /> Markdown
+                </Button>
+                <Button
+                  variant="ghost"
+                  aria-label={`Delete ${record.result.title}`}
+                  onClick={() => onDelete(record)}
+                >
+                  <Trash2 data-icon="inline-start" /> Delete
+                </Button>
+              </div>
             </article>
           ))}
         </div>
@@ -73,14 +84,14 @@ export const DecisionLibrary = ({
         <div className="empty-library">
           <FileText size={24} />
           <strong>
-            {query ? "No matching decisions" : "No saved decisions yet"}
+            {query && records.length ? "No matching decisions" : "No saved decisions yet"}
           </strong>
           <p>
-            {query
+            {query && records.length
               ? "Try another phrase from the brief or recommendation."
               : "Completed councils appear here. The most recent 50 stay on this device."}
           </p>
-          {!query && (
+          {(!query || !records.length) && (
             <Button onClick={onNew}>
               <Plus data-icon="inline-start" />
               Start a decision

@@ -58,9 +58,8 @@ it("preserves a failed message and saves the conversation only after a successfu
     )
     .mockResolvedValueOnce(
       new Response(
-        JSON.stringify({
-          text: "A smaller budget changes the recommendation.",
-        }),
+        `${JSON.stringify({ type: "delta", text: "A smaller budget changes the recommendation." })}\n${JSON.stringify({ type: "done" })}\n`,
+        { headers: { "Content-Type": "application/x-ndjson" } },
       ),
     );
 
@@ -98,6 +97,7 @@ it("preserves a failed message and saves the conversation only after a successfu
         content: "A smaller budget changes the recommendation.",
       },
     ]),
+    { timeout: 3000 },
   );
   expect(fetch).toHaveBeenLastCalledWith(
     "/api/discuss",

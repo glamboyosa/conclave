@@ -176,3 +176,36 @@ it("answers a follow-up using the memo and the complete discussion", async () =>
 
   for (const message of messages) expect(prompt).toContain(message.content);
 });
+
+it("streams follow-up text through the installed provider interface", async () => {
+  const updates: string[] = [];
+
+  const model = new MockLanguageModelV4({
+    doStream: async () => ({
+      stream: new ReadableStream({
+        start(controller) {
+          controller.enqueue({ type: "text-start", id: "fake-text" });
+          controller.enqueue({ type: "text-delta", id: "fake-text", delta: "Keep " });
+          controller.enqueue({ type: "text-delta", id: "fake-text", delta: "the pilot small." });
+          controller.enqueue({ type: "text-end", id: "fake-text" });
+          controller.enqueue({
+            type: "finish",
+            finishReason: { unified: "stop", raw: "stop" },
+            usage: {
+              inputTokens: { total: 10, noCache: 10, cacheRead: 0, cacheWrite: 0 },
+              outputTokens: { total: 10, text: 10, reasoning: 0 },
+            },
+          });
+          controller.close();
+        },
+      }),
+    }),
+  });
+
+  const brief = "Should our test team run a bounded pilot?";
+  expect(await discussDecision(model, brief, buildDemoRun(brief),
+    [{ role: "user", content: "What should we change?" }],
+    (text) => updates.push(text))).toBe("Keep the pilot small.");
+  expect(updates).toEqual(["Keep ", "the pilot small."]);
+  expect(JSON.stringify(model.doStreamCalls[0].prompt)).toContain(brief);
+});

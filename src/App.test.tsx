@@ -8,6 +8,10 @@ beforeEach(() => {
   localStorage.clear();
   sessionStorage.clear();
   vi.restoreAllMocks();
+  vi.stubGlobal("IntersectionObserver", class {
+    observe = vi.fn();
+    disconnect = vi.fn();
+  });
 });
 
 describe("decision room", () => {

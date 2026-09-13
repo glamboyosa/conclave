@@ -15,7 +15,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { LanguageModel } from "ai";
 import { z } from "zod";
 import { discussDecision, runModelCouncil } from "../src/council.js";
-import { buildDemoRun, type CouncilEvent } from "../src/engine.js";
+import { buildDemoRun, type CouncilEvent, type DiscussionEvent } from "../src/engine.js";
 import {
   providerMeta,
   usesSharedNvidiaRoute,
@@ -561,6 +561,41 @@ export const createApiHandler = (
       const env = getEnv();
       secrets = [connection.apiKey, env.OPENROUTER_API_KEY ?? ""];
       const model = buildModel(connection, env);
+
+      if (req.headers.accept?.includes("application/x-ndjson")) {
+        const controller = new AbortController();
+        const abort = () => controller.abort();
+        res.on("close", abort);
+        res.statusCode = 200;
+        res.setHeader("Content-Type", "application/x-ndjson");
+        res.setHeader("Cache-Control", "no-store");
+        res.setHeader("X-Accel-Buffering", "no");
+
+        const send = (event: DiscussionEvent) => {
+          if (!res.destroyed) res.write(`${JSON.stringify(event)}\n`);
+        };
+
+        try {
+          await discussDecision(
+            model, brief, memo, messages,
+            (text) => send({ type: "delta", text }),
+            controller.signal,
+          );
+          send({ type: "done" });
+        } catch (cause) {
+          if (!controller.signal.aborted) {
+            const reason = describeRunError(cause, secrets);
+            console.error("[Conclave discussion failed]", { runId, reason });
+            send({ type: "error", error: `${reason} Run ID: ${runId}` });
+          }
+        } finally {
+          res.off("close", abort);
+          res.end();
+        }
+
+        return;
+      }
+
       const text = await discussDecision(model, brief, memo, messages);
 
       return json(res, 200, JSON.stringify({ text }));

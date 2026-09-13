@@ -1,13 +1,13 @@
 import { useEffect, useRef } from "react";
 
-const messages = [
+const defaultMessages = [
   "The Chair is considering your message…",
   "Waiting for the model’s reply…",
   "Your follow-up is still being processed…",
   "The reply will appear here…",
 ];
 
-export const DiscussionPending = () => {
+export const DiscussionPending = ({ messages = defaultMessages }: { messages?: string[] }) => {
   const container = useRef<HTMLParagraphElement>(null);
 
   useEffect(() => {
@@ -41,7 +41,7 @@ export const DiscussionPending = () => {
       ref={container}
       data-paused="true"
     >
-      <span className="sr-only">Waiting for the Chair’s reply.</span>
+      <span className="sr-only">{messages === defaultMessages ? "Waiting for the Chair’s reply." : messages[0]}</span>
       {messages.map((message, index) => (
         <span
           className="discussion-pending-message"

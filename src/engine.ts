@@ -106,3 +106,8 @@ export type RevisionContext = {
   memo: RunResult;
   messages: DiscussionMessage[];
 };
+
+export type DiscussionEvent =
+  | { type: "delta"; text: string }
+  | { type: "done" }
+  | { type: "error"; error: string };

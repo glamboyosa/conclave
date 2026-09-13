@@ -76,6 +76,46 @@ export const saveDiscussion = (id: string, discussion: DiscussionMessage[]) => {
   return records;
 };
 
+export const deleteDecision = (id: string) => {
+  const records = loadDecisionLibrary()
+    .filter((record) => record.id !== id)
+    .map((record) => {
+      if (record.parentId !== id) return record;
+      const revision = { ...record };
+      delete revision.parentId;
+
+      return revision;
+    });
+
+  localStorage.setItem(libraryKey, JSON.stringify(records));
+
+  return records;
+};
+
+export const restoreDecision = (
+  record: DecisionRecord,
+  index: number,
+  revisionIds: string[],
+) => {
+  const records = loadDecisionLibrary().map((saved) =>
+    revisionIds.includes(saved.id) && !saved.parentId
+      ? { ...saved, parentId: record.id }
+      : saved,
+  );
+
+  if (!records.some((saved) => saved.id === record.id)) {
+    const restored = { ...record };
+
+    if (restored.parentId && !records.some((saved) => saved.id === restored.parentId))
+      delete restored.parentId;
+    records.splice(index, 0, restored);
+  }
+
+  localStorage.setItem(libraryKey, JSON.stringify(records));
+
+  return records;
+};
+
 export function decisionMarkdown(record: DecisionRecord) {
   const positions = record.result.agents
     .map(

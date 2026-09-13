@@ -787,6 +787,11 @@ input::placeholder {
   padding: 16px 0;
   gap: 12px;
 }
+.library-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
 .library-list article > button:first-child {
   min-width: 0;
   border: 0;
@@ -1272,7 +1277,7 @@ details ul {
   .library-list article {
     grid-template-columns: minmax(0, 1fr);
   }
-  .library-list article > button:last-child {
+  .library-actions {
     justify-self: start;
   }
   .guide-section dl {
@@ -1340,8 +1345,20 @@ details ul {
   bottom: max(24px, env(safe-area-inset-bottom));
   z-index: 200;
   width: min(380px, calc(100vw - 32px));
+  height: var(--toast-frontmost-height, 0px);
+}
+.toast-viewport[data-expanded],
+.toast-viewport[data-touch-expanded] {
+  height: var(--toast-stack-height);
 }
 .connection-toast {
+  position: absolute;
+  bottom: 0;
+  width: 100%;
+  height: var(--toast-frontmost-height, auto);
+  transform-origin: bottom center;
+  z-index: calc(100 - var(--toast-index));
+  transform: translateY(calc(var(--toast-index) * -12px)) scale(calc(1 - var(--toast-index) * 0.04));
   display: flex;
   align-items: flex-start;
   gap: 12px;
@@ -1355,6 +1372,20 @@ details ul {
     opacity 200ms ease-out,
     transform 200ms cubic-bezier(0.32, 0.72, 0, 1);
 }
+.toast-viewport[data-expanded] .connection-toast,
+.toast-viewport[data-touch-expanded] .connection-toast {
+  height: var(--toast-height, auto);
+  transform: translateY(calc((var(--toast-offset-y) + var(--toast-index) * 8px) * -1));
+}
+.toast-viewport:not([data-expanded]):not([data-touch-expanded]) .connection-toast[data-behind] > * {
+  visibility: hidden;
+}
+.connection-toast::before {
+  content: "";
+  position: absolute;
+  inset: -8px 0 0;
+  z-index: -1;
+}
 .connection-toast > svg {
   flex-shrink: 0;
   margin-top: 2px;
@@ -1362,6 +1393,26 @@ details ul {
 .connection-toast .icon-button {
   flex-shrink: 0;
   margin: -8px -8px -8px 0;
+}
+.toast-content {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.toast-action {
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: var(--muted-surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.toast-action:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
 }
 .toast-title {
   font-size: 14px;
@@ -1373,8 +1424,8 @@ details ul {
   line-height: 1.5;
   color: var(--muted);
 }
-.connection-toast[data-starting-style],
-.connection-toast[data-ending-style] {
+.toast-viewport .connection-toast[data-starting-style],
+.toast-viewport .connection-toast[data-ending-style] {
   opacity: 0;
   transform: translateY(8px);
 }
@@ -1543,6 +1594,8 @@ details ul {
 }
 .discussion-pending-message {
   grid-area: 1 / 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
   animation: discussion-pending-message 12s cubic-bezier(0.32, 0.72, 0, 1)
     infinite both;

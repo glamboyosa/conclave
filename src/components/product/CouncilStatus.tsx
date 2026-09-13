@@ -1,5 +1,7 @@
 import { Check, LoaderCircle } from "lucide-react";
 
+import { DiscussionPending } from "./DiscussionPending";
+
 type Props = {
   stage: string;
   completed: string[];
@@ -55,6 +57,22 @@ export const CouncilStatus = ({ stage, completed, offline, brief }: Props) => (
         );
       })}
     </div>
+    {!offline && (
+      <DiscussionPending
+        key={stage}
+        messages={stage === "chair" ? [
+          "The Chair is reviewing the assessments…",
+          "Waiting for the recommendation…",
+          "The saved memo will appear when complete…",
+          "The model is still processing the assessments…",
+        ] : [
+          "Opportunity, evidence and risk assessments are running…",
+          "Waiting for the independent assessments…",
+          "Completed assessments appear above…",
+          "The models are still processing your brief…",
+        ]}
+      />
+    )}
     <details>
       <summary>Decision brief</summary>
       <p>{brief}</p>

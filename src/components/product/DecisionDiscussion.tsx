@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { ArrowDown, ArrowUp, MessageSquare, RotateCcw } from "lucide-react";
-import { z } from "zod";
+import { readDiscussionResponse } from "../../discussion-client";
 import type { DiscussionMessage } from "../../engine";
 import type { ModelConnection } from "../../providers";
 import type { DecisionRecord } from "../../storage";
@@ -38,6 +38,7 @@ export const DecisionDiscussion = ({
   const [draft, setDraft] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
+  const [streamingText, setStreamingText] = useState("");
   const controller = useRef<AbortController | null>(null);
   const input = useRef<HTMLTextAreaElement>(null);
   const bottom = useRef<HTMLDivElement>(null);
@@ -62,7 +63,7 @@ export const DecisionDiscussion = ({
 
   useLayoutEffect(() => {
     if (open && followLatest.current) scrollToLatest();
-  }, [open, messages.length, pending, error]);
+  }, [open, messages.length, pending, error, streamingText]);
 
   useEffect(() => {
     if (!open || !body.current) return;
@@ -112,11 +113,21 @@ export const DecisionDiscussion = ({
     const request = new AbortController();
     controller.current = request;
     setPending(true);
+    setStreamingText("");
+    const startedAt = performance.now();
+    let bufferedText = "";
+    let reveal = false;
+
+    const timer = setTimeout(() => {
+      reveal = true;
+
+      if (!request.signal.aborted) setStreamingText(bufferedText);
+    }, 1500);
 
     try {
       const response = await fetch("/api/discuss", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Accept: "application/x-ndjson" },
         signal: request.signal,
         body: JSON.stringify({
           brief: record.brief,
@@ -126,14 +137,16 @@ export const DecisionDiscussion = ({
         }),
       });
 
-      const value = await response.json();
+      const text = await readDiscussionResponse(response, (value) => {
+        bufferedText = value;
 
-      if (!response.ok)
-        throw new Error(z.object({ error: z.string() }).parse(value).error);
+        if (reveal && !request.signal.aborted) setStreamingText(value);
+      });
 
-      const { text } = z
-        .object({ text: z.string().trim().min(1).max(12000) })
-        .parse(value);
+      if (!reveal && !request.signal.aborted) {
+        const remaining = Math.max(0, 1500 - (performance.now() - startedAt));
+        await new Promise<void>((resolve) => setTimeout(resolve, remaining));
+      }
 
       if (request.signal.aborted) return;
       onSave([...next, { role: "assistant", content: text }]);
@@ -147,7 +160,12 @@ export const DecisionDiscussion = ({
             : "The reply failed. Your message is still here; try again.",
         );
     } finally {
-      if (!request.signal.aborted) setPending(false);
+      clearTimeout(timer);
+
+      if (!request.signal.aborted) {
+        setPending(false);
+        setStreamingText("");
+      }
     }
   };
 
@@ -186,6 +204,16 @@ export const DecisionDiscussion = ({
                 </Suspense>
               </article>
             ))}
+            {pending && (
+              <article className="discussion-message discussion-assistant" aria-busy="true">
+                <strong>Chair</strong>
+                {streamingText ? (
+                  <Suspense fallback={<p>{streamingText}</p>}>
+                    <DiscussionMarkdown content={streamingText} />
+                  </Suspense>
+                ) : <DiscussionPending />}
+              </article>
+            )}
           </div>
           <form
             onSubmit={(event) => {
@@ -229,7 +257,7 @@ export const DecisionDiscussion = ({
               </div>
             </div>
             {pending ? (
-              <DiscussionPending />
+              <p className="discussion-hint" role="status">{streamingText ? "Receiving the Chair’s reply…" : "Waiting for the Chair’s reply…"}</p>
             ) : (
               <p className="discussion-hint" role="status">
                 {full

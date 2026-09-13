@@ -1,6 +1,11 @@
 import { expect, test } from "@playwright/test";
 import { buildDemoRun } from "../src/engine";
 
+const reply = (text: string) => ({
+  contentType: "application/x-ndjson",
+  body: `${JSON.stringify({ type: "delta", text })}\n${JSON.stringify({ type: "done" })}\n`,
+});
+
 const brief = "Should our test team pilot a new decision workflow?";
 const original = {
   id: "original-test-decision",
@@ -61,7 +66,7 @@ test("discussion survives reload and a revision preserves the original memo and 
             status: 502,
             json: { error: "Provider credits exhausted. Run ID: test-reply" },
           }
-        : { json: { text: "That budget calls for a smaller pilot." } },
+        : reply("That budget calls for a smaller pilot."),
     );
   });
   await page.route("**/api/run", async (route) => {
@@ -144,7 +149,7 @@ test("pending replies cycle downward without shifting layout and respect reduced
   });
   await page.route("**/api/discuss", async (route) => {
     await waiting;
-    await route.fulfill({ json: { text: "Here is the reply." } });
+    await route.fulfill(reply("Here is the reply."));
   });
   await page.goto("/");
   await page
@@ -227,14 +232,9 @@ test("Markdown replies stay readable and navigation controls preserve the reader
   await page.route("**/api/discuss", async (route) => {
     calls++;
     if (calls === 1) await waiting;
-    await route.fulfill({
-      json: {
-        text:
-          calls === 1
-            ? markdown
-            : `${markdown}\n\nThe lower budget changes the scope.`,
-      },
-    });
+    await route.fulfill(reply(calls === 1
+      ? markdown
+      : `${markdown}\n\nThe lower budget changes the scope.`));
   });
   await page.goto("/");
   await page

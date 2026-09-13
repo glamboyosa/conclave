@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { buildDemoRun } from "./engine";
 import {
   decisionMarkdown,
+  deleteDecision,
+  restoreDecision,
   loadDecisionLibrary,
   saveDecision,
   saveDiscussion,
@@ -67,4 +69,40 @@ it("keeps the original memo intact while saving discussion and a linked revision
   expect(decisionMarkdown(records[1])).toContain(
     "The budget has dropped to £5,000.",
   );
+});
+
+it("deletes a memo and discussion while preserving and detaching its revisions", () => {
+  const brief = "Should our test team run a bounded pilot?";
+  const original = saveDecision(brief, buildDemoRun(brief));
+  saveDiscussion(original.id, [{ role: "user", content: "New context." }]);
+  const revision = saveDecision(brief, original.result, original.id);
+  const other = saveDecision("An unrelated test decision", original.result);
+  const records = deleteDecision(original.id);
+
+  expect(records.map((record) => record.id)).toEqual([other.id, revision.id]);
+  expect(records[1].parentId).toBeUndefined();
+  expect(records[1].result).toEqual(revision.result);
+  expect(loadDecisionLibrary()).toEqual(records);
+  expect(localStorage.getItem("conclave:library")).not.toContain("New context.");
+  expect(deleteDecision(revision.id)).toHaveLength(1);
+  expect(deleteDecision(other.id)).toEqual([]);
+  expect(loadDecisionLibrary()).toEqual([]);
+});
+
+it("undo restores a deleted memo and revision links without overwriting newer records", () => {
+  const brief = "Should our test team run a bounded pilot?";
+  const original = saveDecision(brief, buildDemoRun(brief));
+  saveDiscussion(original.id, [{ role: "user", content: "Saved test context." }]);
+  const revision = saveDecision(brief, original.result, original.id);
+  const deleted = loadDecisionLibrary()[1];
+  deleteDecision(original.id);
+  const newer = saveDecision("A newer test decision", original.result);
+  saveDiscussion(revision.id, [{ role: "user", content: "New revision context." }]);
+  const records = restoreDecision(deleted, 1, [revision.id]);
+
+  expect(records.find((saved) => saved.id === original.id)).toEqual(deleted);
+  expect(records.find((saved) => saved.id === revision.id)?.parentId).toBe(original.id);
+  expect(records.find((saved) => saved.id === revision.id)?.discussion?.[0].content).toBe("New revision context.");
+  expect(records.some((saved) => saved.id === newer.id)).toBe(true);
+  expect(loadDecisionLibrary()).toEqual(records);
 });
