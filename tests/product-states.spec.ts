@@ -365,6 +365,7 @@ test("other free OpenRouter models require BYOK while NVIDIA is shared", async (
 test("theme preference survives reload and the model menu returns focus", async ({
   page,
 }) => {
+  await page.clock.install({ time: new Date(2026, 8, 14, 12, 0) });
   await page.route("**/api/models?**", (route) =>
     route.fulfill({
       json: { source: "fallback", models: popularModels("openrouter") },

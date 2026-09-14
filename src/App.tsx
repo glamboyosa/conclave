@@ -130,14 +130,23 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const [dark, setDark] = useState(
-    () => localStorage.getItem("conclave:theme") === "dark",
+    () => document.documentElement.dataset.theme === "dark",
   );
+
+  useEffect(() => {
+    const syncTheme = () => setDark(document.documentElement.dataset.theme === "dark");
+
+    window.addEventListener("conclave:theme-change", syncTheme);
+
+    return () => window.removeEventListener("conclave:theme-change", syncTheme);
+  }, []);
 
   useEffect(() => {
     const root = document.documentElement;
     root.classList.add("no-transitions");
     root.dataset.theme = dark ? "dark" : "light";
-    localStorage.setItem("conclave:theme", dark ? "dark" : "light");
+    document.querySelector('meta[name="theme-color"]')
+      ?.setAttribute("content", dark ? "#1b1b1b" : "#ffffff");
 
     let frame = requestAnimationFrame(() => {
       frame = requestAnimationFrame(() =>
@@ -562,7 +571,15 @@ export default function App() {
           <button
             className="icon-button theme-toggle"
             aria-label={dark ? "Use light theme" : "Use dark theme"}
-            onClick={() => setDark(!dark)}
+            onClick={() => {
+              try {
+                localStorage.setItem("conclave:theme", dark ? "light" : "dark");
+              } catch {
+                // The theme can still change when browser storage is unavailable.
+              }
+
+              setDark(!dark);
+            }}
           >
             {dark ? <Sun size={17} /> : <Moon size={17} />}
           </button>
@@ -763,6 +780,12 @@ export default function App() {
             </div>
           )}
         </div>
+        <footer className="creator-credit">
+          A project by{" "}
+          <a href="https://glamboyosa.xyz" target="_blank" rel="noopener noreferrer">
+            Osa Ogbemudia
+          </a>
+        </footer>
       </main>
       <Toast.Provider toastManager={toastManager} limit={5}>
         <ConnectionToasts />

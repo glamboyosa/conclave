@@ -243,7 +243,7 @@ export const ModelPicker = ({
           align="start"
           side={side}
           collisionAvoidance={{
-            side: "none",
+            side: "shift",
             align: "shift",
             fallbackAxisSide: "none",
           }}

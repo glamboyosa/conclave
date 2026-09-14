@@ -274,6 +274,25 @@ a {
   font-size: 11px;
   color: var(--muted);
 }
+.creator-credit {
+  padding: 20px 24px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--muted);
+}
+.creator-credit a {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.creator-credit a:hover {
+  color: var(--muted);
+}
+.creator-credit a:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 4px;
+  border-radius: 2px;
+}
 main {
   grid-column: 2;
   min-width: 0;
