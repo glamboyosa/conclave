@@ -296,6 +296,9 @@ a {
 main {
   grid-column: 2;
   min-width: 0;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
 }
 main > header {
   height: 58px;
@@ -359,13 +362,18 @@ main > header {
 }
 .workspace {
   width: 100%;
+  flex: 1;
   padding: 40px 36px 60px;
+}
+.workspace:has(.composer-view) {
+  display: flex;
 }
 .composer-view {
   width: 100%;
   max-width: 780px;
   margin: 0 auto;
-  min-height: calc(100dvh - 158px);
+  min-height: 0;
+  flex: 1;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -1218,7 +1226,6 @@ details ul {
     padding: 28px 20px 40px;
   }
   .composer-view {
-    min-height: calc(100dvh - 160px);
     padding-bottom: 6vh;
   }
   .agents {

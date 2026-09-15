@@ -42,3 +42,14 @@ test("share metadata and creator link are available", async ({ page, request }) 
   await expect(credit).toBeVisible();
   await expect(credit).toHaveAttribute("href", "https://glamboyosa.xyz");
 });
+
+test("the empty decision room fits without trailing scroll space", async ({ page }) => {
+  await page.goto("/");
+  const pageHeight = await page.evaluate(() => ({
+    viewport: window.innerHeight,
+    document: document.documentElement.scrollHeight,
+  }));
+
+  expect(pageHeight.document).toBeLessThanOrEqual(pageHeight.viewport);
+  await expect(page.getByRole("link", { name: "Osa Ogbemudia" })).toBeVisible();
+});
