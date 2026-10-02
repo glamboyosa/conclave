@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { describeRunError, redactSecrets } from "./run-error.js";
 import { createModelsDevCatalog } from "./models-dev.js";
+import { traceAI } from "./telemetry.js";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createDeepSeek } from "@ai-sdk/deepseek";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
@@ -15,7 +16,11 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { LanguageModel } from "ai";
 import { z } from "zod";
 import { discussDecision, runModelCouncil } from "../src/council.js";
-import { buildDemoRun, type CouncilEvent, type DiscussionEvent } from "../src/engine.js";
+import {
+  buildDemoRun,
+  type CouncilEvent,
+  type DiscussionEvent,
+} from "../src/engine.js";
 import {
   providerMeta,
   usesSharedNvidiaRoute,
@@ -561,6 +566,7 @@ export const createApiHandler = (
       const env = getEnv();
       secrets = [connection.apiKey, env.OPENROUTER_API_KEY ?? ""];
       const model = buildModel(connection, env);
+      const safeModel = redactSecrets(connection.model, secrets);
 
       if (req.headers.accept?.includes("application/x-ndjson")) {
         const controller = new AbortController();
@@ -576,10 +582,21 @@ export const createApiHandler = (
         };
 
         try {
-          await discussDecision(
-            model, brief, memo, messages,
-            (text) => send({ type: "delta", text }),
-            controller.signal,
+          await traceAI(
+            env,
+            "conclave.discussion",
+            runId,
+            connection.provider,
+            safeModel,
+            () =>
+              discussDecision(
+                model,
+                brief,
+                memo,
+                messages,
+                (text) => send({ type: "delta", text }),
+                controller.signal,
+              ),
           );
           send({ type: "done" });
         } catch (cause) {
@@ -596,7 +613,14 @@ export const createApiHandler = (
         return;
       }
 
-      const text = await discussDecision(model, brief, memo, messages);
+      const text = await traceAI(
+        env,
+        "conclave.discussion",
+        runId,
+        connection.provider,
+        safeModel,
+        () => discussDecision(model, brief, memo, messages),
+      );
 
       return json(res, 200, JSON.stringify({ text }));
     } catch (cause) {
@@ -718,7 +742,15 @@ export const createApiHandler = (
         };
 
         try {
-          const council = await runModelCouncil(model, brief, send, revision);
+          const council = await traceAI(
+            env,
+            "conclave.council",
+            runId,
+            connection.provider,
+            safeModel,
+            () => runModelCouncil(model, brief, send, revision),
+          );
+
           send({ type: "result", result: council });
         } catch (cause) {
           send({ type: "error", error: failureMessage(cause) });
@@ -732,13 +764,21 @@ export const createApiHandler = (
       let council;
 
       try {
-        council = await runModelCouncil(
-          model,
-          brief,
-          (event) => {
-            if (event.type === "stage") stage = event.stage;
-          },
-          revision,
+        council = await traceAI(
+          env,
+          "conclave.council",
+          runId,
+          connection.provider,
+          safeModel,
+          () =>
+            runModelCouncil(
+              model,
+              brief,
+              (event) => {
+                if (event.type === "stage") stage = event.stage;
+              },
+              revision,
+            ),
         );
       } catch (cause) {
         return json(res, 502, JSON.stringify({ error: failureMessage(cause) }));

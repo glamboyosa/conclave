@@ -11,6 +11,7 @@
     "test": "./node_modules/node/bin/node ./node_modules/vitest/vitest.mjs run",
     "test:watch": "./node_modules/node/bin/node ./node_modules/vitest/vitest.mjs",
     "test:e2e": "./node_modules/node/bin/node ./node_modules/@playwright/test/cli.js test",
+    "eval": "./node_modules/node/bin/node --env-file=.env.local evals/run.mjs",
     "check": "pnpm lint && pnpm test && pnpm build && pnpm test:e2e"
   },
   "dependencies": {
@@ -25,7 +26,12 @@
     "@ai-sdk/xai": "^4.0.57",
     "@base-ui/react": "1.1.0",
     "@fontsource-variable/geist": "5.2.8",
+    "@langfuse/client": "5.11.1",
+    "@langfuse/otel": "5.11.1",
+    "@langfuse/tracing": "5.11.1",
+    "@langfuse/vercel-ai-sdk": "5.11.1",
     "@openrouter/ai-sdk-provider": "3.0.0",
+    "@opentelemetry/sdk-node": "^0.222.0",
     "@vercel/analytics": "^2.0.1",
     "ai": "7.0.97",
     "class-variance-authority": "0.7.1",
