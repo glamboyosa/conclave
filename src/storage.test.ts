@@ -71,6 +71,23 @@ it("keeps the original memo intact while saving discussion and a linked revision
   );
 });
 
+it("retains reply model attribution in the library and Markdown export", () => {
+  const brief = "Should our test team pilot a new decision workflow?";
+  const record = saveDecision(brief, buildDemoRun(brief));
+  saveDiscussion(record.id, [
+    { role: "user", content: "What changed?" },
+    {
+      role: "assistant",
+      content: "The cost changed.",
+      execution: { provider: "anthropic", model: "test-model-130" },
+    },
+  ]);
+
+  const saved = loadDecisionLibrary()[0];
+  expect(saved.discussion?.[1].execution).toEqual({ provider: "anthropic", model: "test-model-130" });
+  expect(decisionMarkdown(saved)).toContain("### Chair · anthropic · test-model-130");
+});
+
 it("deletes a memo and discussion while preserving and detaching its revisions", () => {
   const brief = "Should our test team run a bounded pilot?";
   const original = saveDecision(brief, buildDemoRun(brief));

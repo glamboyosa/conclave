@@ -3,6 +3,9 @@
   "functions": {
     "api/*.ts": { "maxDuration": 300 }
   },
+  "rewrites": [
+    { "source": "/landing", "destination": "/index.html" }
+  ],
   "headers": [
     {
       "source": "/(.*)",

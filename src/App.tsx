@@ -26,6 +26,7 @@ import { CouncilStatus } from "./components/product/CouncilStatus";
 import { resultSchema } from "./schemas";
 import { readCouncilResponse } from "./run-client";
 import { GuideView } from "./Guide";
+import { Landing } from "./Landing";
 import {
   defaultConnection,
   keyOptional,
@@ -127,6 +128,46 @@ function loadSavedConnection(): ModelConnection {
 }
 
 export default function App() {
+  const [showLanding, setShowLanding] = useState(() => {
+    if (window.location.pathname === "/landing") return true;
+
+    if (window.location.pathname !== "/") return false;
+
+    try {
+      return localStorage.getItem("conclave:seenLanding") !== "1"
+        && localStorage.getItem("conclave:lastRun") === null
+        && localStorage.getItem("conclave:library") === null
+        && localStorage.getItem("conclave:connection") === null;
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    if (showLanding) {
+      if (window.location.pathname === "/") {
+        window.history.replaceState(null, "", "/landing");
+      }
+
+      try {
+        localStorage.setItem("conclave:seenLanding", "1");
+      } catch {
+        // The landing page still works when browser storage is unavailable.
+      }
+    }
+
+    const onPopState = () => setShowLanding(window.location.pathname === "/landing");
+    window.addEventListener("popstate", onPopState);
+
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [showLanding]);
+
+  const navigateTo = (path: "/" | "/landing") => {
+    if (window.location.pathname !== path) window.history.pushState(null, "", path);
+    setShowLanding(path === "/landing");
+    window.scrollTo(0, 0);
+  };
+
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const [dark, setDark] = useState(
@@ -159,6 +200,16 @@ export default function App() {
       root.classList.remove("no-transitions");
     };
   }, [dark]);
+
+  const toggleTheme = () => {
+    try {
+      localStorage.setItem("conclave:theme", dark ? "light" : "dark");
+    } catch {
+      // The theme can still change when browser storage is unavailable.
+    }
+
+    setDark(!dark);
+  };
 
   const [initial] = useState(loadSavedRun);
   const [brief, setBrief] = useState(initial.brief);
@@ -473,13 +524,28 @@ export default function App() {
     />
   );
 
+  if (showLanding) {
+    return <Landing
+      dark={dark}
+      onEnter={() => {
+        setView("decision");
+        navigateTo("/");
+      }}
+      onGuide={() => {
+        setView("guide");
+        navigateTo("/");
+      }}
+      onToggleTheme={toggleTheme}
+    />;
+  }
+
   return (
     <div className={`shell ${sidebarOpen ? "" : "sidebar-collapsed"}`}>
       <aside className="sidebar">
-        <div className="brand">
+        <button className="brand" onClick={() => navigateTo("/landing")} aria-label="About Conclave">
           <ConclaveMark />
           <span>Conclave</span>
-        </div>
+        </button>
         <button className="new-run" onClick={reset}>
           <Plus size={16} />
           New decision
@@ -548,7 +614,9 @@ export default function App() {
           >
             <PanelLeft size={18} />
           </button>
-          <ConclaveMark className="mobile-brand-mark" />
+          <button className="mobile-brand-link" onClick={() => navigateTo("/landing")} aria-label="About Conclave">
+            <ConclaveMark className="mobile-brand-mark" />
+          </button>
           <span className="workspace-title">
             {view === "decision"
               ? phase === "done" && result
@@ -571,15 +639,7 @@ export default function App() {
           <button
             className="icon-button theme-toggle"
             aria-label={dark ? "Use light theme" : "Use dark theme"}
-            onClick={() => {
-              try {
-                localStorage.setItem("conclave:theme", dark ? "light" : "dark");
-              } catch {
-                // The theme can still change when browser storage is unavailable.
-              }
-
-              setDark(!dark);
-            }}
+            onClick={toggleTheme}
           >
             {dark ? <Sun size={17} /> : <Moon size={17} />}
           </button>
@@ -630,7 +690,7 @@ export default function App() {
         </nav>
         <div className="workspace">
           {view === "guide" ? (
-            <GuideView />
+            <GuideView onAbout={() => navigateTo("/landing")} />
           ) : view === "library" ? (
             <DecisionLibrary
               records={library}
@@ -754,6 +814,7 @@ export default function App() {
                   }
                 }
                 connection={connection}
+                modelLabel={modelLabel(connection.model)}
                 controls={connectionControls}
                 onSave={(messages) => {
                   const record = activeRecord ?? saveDecision(brief, result);

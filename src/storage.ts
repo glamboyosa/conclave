@@ -128,7 +128,7 @@ export function decisionMarkdown(record: DecisionRecord) {
     values.map((value) => `- ${value}`).join("\n");
 
   const discussion = record.discussion?.length
-    ? `\n## Discussion\n\n${record.discussion.map((message) => `### ${message.role === "user" ? "You" : "Chair"}\n\n${message.content}`).join("\n\n")}\n`
+    ? `\n## Discussion\n\n${record.discussion.map((message) => `### ${message.role === "user" ? "You" : "Chair"}${message.execution ? ` · ${message.execution.provider} · ${message.execution.model}` : ""}\n\n${message.content}`).join("\n\n")}\n`
     : "";
 
   return `# ${record.result.title}\n\nCreated: ${record.createdAt}\nModel mode: ${record.result.mode}${record.result.execution ? `\nProvider: ${record.result.execution.provider}\nModel: ${record.result.execution.model}` : ""}\n\n## Decision brief\n\n${record.brief}\n\n## Chair's call\n\n${record.result.verdict}\n\nConfidence: ${record.result.confidence}/100\n\n## Independent positions\n\n${positions}\n\n## Productive tensions\n\n${list(record.result.tensions)}\n\n## Next moves\n\n${list(record.result.actions)}\n\n## Assumptions\n\n${list(record.result.assumptions)}\n${discussion}`;

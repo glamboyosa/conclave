@@ -65,6 +65,8 @@ export const ModelPicker = ({
   const [scrollTop, setScrollTop] = useState(0);
   const [pointerMotion, setPointerMotion] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
   const restoreSelection = useRef(false);
 
   const resetList = () => {
@@ -251,8 +253,10 @@ export const ModelPicker = ({
           collisionPadding={12}
         >
           <Popover.Popup
+            ref={popupRef}
             className="model-dialog"
             data-pointer-motion={pointerMotion || undefined}
+            initialFocus={(type) => type === "touch" ? popupRef.current : searchRef.current}
           >
             <div className="picker-heading">
               <div>
@@ -271,7 +275,7 @@ export const ModelPicker = ({
             <div className="picker-search">
               <Search size={18} />
               <input
-                autoFocus
+                ref={searchRef}
                 aria-label="Search models"
                 role="combobox"
                 aria-controls="model-options"
@@ -413,7 +417,9 @@ export const ModelPicker = ({
                         tabIndex={-1}
                         className={`${index === active ? "highlighted" : ""} ${groupStart ? "provider-group-start" : ""}`}
                         key={`${provider}|${model.id}`}
-                        onMouseMove={() => setActive(index)}
+                        onMouseMove={(event) => {
+                          if (event.movementX || event.movementY) setActive(index);
+                        }}
                         onClick={() => choose(index)}
                       >
                         {groupStart && (

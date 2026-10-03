@@ -100,6 +100,7 @@ export type CouncilEvent =
 export type DiscussionMessage = {
   role: "user" | "assistant";
   content: string;
+  execution?: { provider: string; model: string };
 };
 
 export type RevisionContext = {

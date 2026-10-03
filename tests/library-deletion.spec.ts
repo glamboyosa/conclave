@@ -17,6 +17,7 @@ const revision = {
 };
 
 test("deletion can be undone, preserves revisions, and clears the active memo on reload", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("conclave:seenLanding", "1"));
   await page.route("**/api/catalog", (route) => route.fulfill({ status: 503, json: { error: "Test unavailable" } }));
   await page.route("**/api/availability", (route) => route.fulfill({ json: { sharedOpenRouter: true } }));
   await page.route("**/api/models?**", (route) => route.fulfill({ json: { models: [], source: "fallback" } }));
@@ -53,6 +54,7 @@ test("deletion can be undone, preserves revisions, and clears the active memo on
 });
 
 test("multiple deletion toasts stack and keep each Undo action accessible", async ({ page, isMobile }) => {
+  await page.addInitScript(() => localStorage.setItem("conclave:seenLanding", "1"));
   const records = [original, revision, { ...original, id: "fake-third", result: { ...original.result, title: "Third test decision" } }];
   await page.route("**/api/catalog", (route) => route.fulfill({ status: 503, json: { error: "Test unavailable" } }));
   await page.route("**/api/availability", (route) => route.fulfill({ json: { sharedOpenRouter: true } }));

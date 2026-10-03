@@ -1,6 +1,6 @@
 # Conclave
 
-Conclave is an AI council for working through decisions. Give it a brief; it assesses opportunity, evidence, and risk, then produces a decision memo with a recommendation and next steps.
+Conclave is a multimodel AI council for working through decisions. Give it a brief; it assesses opportunity, evidence, and risk, then produces a decision memo with a recommendation and next steps. Discuss the memo and switch models or providers between replies without starting over.
 
 Project domain: [conclave.click](https://conclave.click).
 
@@ -14,6 +14,8 @@ pnpm dev
 ```
 
 Open <http://localhost:4173>.
+
+First-time visitors see the short introduction at `/landing`; later visits open the decision room at `/`. The Conclave mark and Guide link back to the introduction.
 
 To enable shared access to free NVIDIA models, create a private `.env.local`:
 
@@ -33,6 +35,8 @@ Paste a brief like this:
 Choose a model, then select **Convene council** or press **Cmd/Ctrl + Enter**. Briefs must contain 20–4,000 characters. The current input accepts text.
 
 Assessments appear as they complete, followed by the Chair's synthesis. Reopen saved decisions in **Library**, or copy/export a memo as Markdown. The council uses the brief you provide; it has no external research tools. Support scores are model self-assessments, not calibrated probabilities.
+
+Select **Discuss this decision** to challenge or clarify the memo. Before a follow-up, use the discussion's model picker to switch providers or models. Conclave sends the memo and prior discussion to the selected model and labels its reply in the timeline. A new provider may require its own API key. Model changes affect the next reply; they do not rerun the original council or revise its memo. To get a new memo, select **Revise decision**.
 
 ## Models and API keys
 

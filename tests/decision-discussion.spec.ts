@@ -15,6 +15,7 @@ const original = {
 };
 
 test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("conclave:seenLanding", "1"));
   await page.route("**/api/catalog", (route) =>
     route.fulfill({ status: 503, json: { error: "Test catalog unavailable" } }),
   );
@@ -47,6 +48,59 @@ test.beforeEach(async ({ page }) => {
     },
     { original },
   );
+});
+
+test("a follow-up keeps its model attribution across reloads", async ({ page }) => {
+  await page.route("**/api/discuss", async (route) => {
+    expect(route.request().postDataJSON().connection).toMatchObject({
+      provider: "custom",
+      model: "test-model",
+    });
+    await route.fulfill(reply("Recheck the cost before committing."));
+  });
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Discuss this decision" }).click();
+  await page.getByLabel("Your follow-up").fill("What if the cost changes?");
+  await page.getByRole("button", { name: "Send follow-up" }).click();
+  await expect(page.getByText("Replies switched to custom · test-model")).toBeVisible();
+  await page.reload();
+  await expect(page.getByText("Replies switched to custom · test-model")).toBeVisible();
+
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("conclave:library") ?? "[]"));
+  expect(saved[0].discussion[1].execution).toEqual({ provider: "custom", model: "test-model" });
+});
+
+test("opening the discussion model picker keeps the reader in place and shows the next model", async ({ page }, testInfo) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Discuss this decision" }).click();
+  await page.getByLabel("Your follow-up").scrollIntoViewIfNeeded();
+
+  const before = await page.evaluate(() => scrollY);
+  expect(before).toBeGreaterThan(0);
+
+  const modelPicker = page.getByRole("button", { name: "Model", exact: true });
+
+  if (testInfo.project.name === "mobile") {
+    await modelPicker.tap();
+    await expect(page.getByRole("dialog")).toBeFocused();
+  } else {
+    await modelPicker.click();
+    await expect(page.getByLabel("Search models")).toBeFocused();
+  }
+  expect(Math.abs(await page.evaluate(() => scrollY) - before)).toBeLessThan(4);
+
+  await page.getByRole("button", { name: "All", exact: true }).click();
+  await page.getByLabel("Search models").fill("nvidia/nemotron-3-super-120b-a12b:free");
+  await page.getByRole("option").first().click();
+
+  await expect(page.getByRole("status").filter({ hasText: "Next reply:" })).toContainText(
+    "OpenRouter · NVIDIA Nemotron 3 Super (free)",
+  );
+  await expect(page.getByRole("status").filter({ hasText: "Next reply:" })).toContainText(
+    "The conversation carries over.",
+  );
+  await expect(page.getByLabel("Your follow-up")).toBeInViewport();
 });
 
 test("discussion survives reload and a revision preserves the original memo and conversation", async ({

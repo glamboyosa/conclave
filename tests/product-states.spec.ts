@@ -4,6 +4,7 @@ import { buildDemoRun } from "../src/engine";
 import { popularModels } from "../src/providers";
 
 test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("conclave:seenLanding", "1"));
   await page.route("**/api/catalog", (route) =>
     route.fulfill({ status: 503, json: { error: "Test catalog unavailable" } }),
   );

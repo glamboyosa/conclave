@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("conclave:seenLanding", "1"));
   await page.route("**/api/**", (route) => route.fulfill({ status: 503, json: {} }));
 });
 

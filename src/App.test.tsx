@@ -6,6 +6,7 @@ import App from "./App";
 beforeEach(() => {
   cleanup();
   localStorage.clear();
+  localStorage.setItem("conclave:seenLanding", "1");
   sessionStorage.clear();
   vi.restoreAllMocks();
   vi.stubGlobal("IntersectionObserver", class {

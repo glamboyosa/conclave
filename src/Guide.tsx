@@ -1,4 +1,4 @@
-export const GuideView = () => (
+export const GuideView = ({ onAbout }: { onAbout: () => void }) => (
   <section className="guide-view">
     <h1>Guide</h1>
     <p className="lede">
@@ -42,6 +42,20 @@ export const GuideView = () => (
       </p>
     </div>
     <div className="guide-section">
+      <h2>Continue with another model</h2>
+      <p>
+        After a memo is ready, select Discuss this decision. Use the model
+        picker above the message box to change the provider or model before
+        your next message. Add the new provider’s key if it needs one. The
+        memo and previous discussion messages go with your follow-up, and
+        the timeline labels each reply with its model.
+      </p>
+      <p>
+        A new model may reach a different conclusion. Check its reasoning
+        against the original brief and your own constraints.
+      </p>
+    </div>
+    <div className="guide-section">
       <h2>Offline preview</h2>
       <p>
         Offline produces a deterministic sample memo without calling a model.
@@ -62,5 +76,6 @@ export const GuideView = () => (
         saved decisions.
       </p>
     </div>
+    <button className="guide-about" onClick={onAbout}>About Conclave</button>
   </section>
 );

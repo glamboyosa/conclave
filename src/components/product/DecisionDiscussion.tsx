@@ -10,7 +10,7 @@ import {
 import { ArrowDown, ArrowUp, MessageSquare, RotateCcw } from "lucide-react";
 import { readDiscussionResponse } from "../../discussion-client";
 import type { DiscussionMessage } from "../../engine";
-import type { ModelConnection } from "../../providers";
+import { providerName, type ModelConnection } from "../../providers";
 import type { DecisionRecord } from "../../storage";
 import { DiscussionPending } from "./DiscussionPending";
 import { Button } from "../ui/button";
@@ -20,6 +20,7 @@ const DiscussionMarkdown = lazy(() => import("./DiscussionMarkdown"));
 type Props = {
   record: DecisionRecord;
   connection: ModelConnection;
+  modelLabel: string;
   controls: ReactNode;
   onSave: (messages: DiscussionMessage[]) => void;
   onRevise: () => void;
@@ -29,6 +30,7 @@ type Props = {
 export const DecisionDiscussion = ({
   record,
   connection,
+  modelLabel,
   controls,
   onSave,
   onRevise,
@@ -47,6 +49,25 @@ export const DecisionDiscussion = ({
   const messages = record.discussion ?? [];
   const offline = connection.provider === "demo";
   const full = messages.length >= (offline ? 40 : 39);
+
+  const modelChange = (index: number) => {
+    const message = messages[index];
+
+    if (message.role !== "assistant" || !message.execution) return null;
+
+    const previous = messages.slice(0, index).reverse().find(
+      (entry) => entry.role === "assistant" && entry.execution,
+    );
+
+    const prior = previous?.execution ?? record.result.execution;
+
+    if (
+      prior?.provider === message.execution.provider &&
+      prior.model === message.execution.model
+    ) return null;
+
+    return `${message.execution.provider} · ${message.execution.model}`;
+  };
 
   useEffect(() => () => controller.current?.abort(), []);
 
@@ -99,6 +120,8 @@ export const DecisionDiscussion = ({
     if (pending || !draft.trim() || full) return;
     followLatest.current = true;
     const content = draft.trim();
+    const selectedModel = { provider: connection.provider, model: connection.model };
+
     const next: DiscussionMessage[] = [...messages, { role: "user", content }];
     setError("");
 
@@ -149,7 +172,7 @@ export const DecisionDiscussion = ({
       }
 
       if (request.signal.aborted) return;
-      onSave([...next, { role: "assistant", content: text }]);
+      onSave([...next, { role: "assistant", content: text, execution: selectedModel }]);
       setDraft("");
       input.current?.focus();
     } catch (cause) {
@@ -193,17 +216,25 @@ export const DecisionDiscussion = ({
             memo stays as it is until you revise it.
           </p>
           <div className="discussion-messages" aria-label="Conversation">
-            {messages.map((message, index) => (
-              <article
-                className={`discussion-message discussion-${message.role}`}
-                key={index}
-              >
-                <strong>{message.role === "user" ? "You" : "Chair"}</strong>
-                <Suspense fallback={<p>{message.content}</p>}>
-                  <DiscussionMarkdown content={message.content} />
-                </Suspense>
-              </article>
-            ))}
+            {messages.map((message, index) => {
+              const change = modelChange(index);
+
+              return (
+                <div key={index}>
+                  {change && (
+                    <p className="discussion-model-change">
+                      Replies switched to {change}
+                    </p>
+                  )}
+                  <article className={`discussion-message discussion-${message.role}`}>
+                    <strong>{message.role === "user" ? "You" : "Chair"}</strong>
+                    <Suspense fallback={<p>{message.content}</p>}>
+                      <DiscussionMarkdown content={message.content} />
+                    </Suspense>
+                  </article>
+                </div>
+              );
+            })}
             {pending && (
               <article className="discussion-message discussion-assistant" aria-busy="true">
                 <strong>Chair</strong>
@@ -259,12 +290,14 @@ export const DecisionDiscussion = ({
             {pending ? (
               <p className="discussion-hint" role="status">{streamingText ? "Receiving the Chair’s reply…" : "Waiting for the Chair’s reply…"}</p>
             ) : (
-              <p className="discussion-hint" role="status">
+              <p className="discussion-hint discussion-model-hint" role="status">
                 {full
                   ? "This discussion has reached its limit. Revise the decision to continue."
                   : offline
                     ? "Offline preview: notes are saved, but no AI replies are generated."
-                    : "Replies use the selected model. Your discussion is saved in this browser."}
+                    : <>
+                        Next reply: <strong>{providerName(connection.provider)} · {modelLabel}</strong>. The conversation carries over.
+                      </>}
               </p>
             )}
           </form>

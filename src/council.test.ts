@@ -118,6 +118,38 @@ it("retries upstream overloads carried inside HTTP 200 and completes the council
   }
 });
 
+it("retries an assessment that exceeds the response schema", async () => {
+  let calls = 0;
+  const brief = "Should Test Studio 130 run a short pilot before launch?";
+
+  const model = new MockLanguageModelV4({
+    doGenerate: async () => {
+      const index = calls++;
+
+      const output = index === 0
+        ? { thesis: "x".repeat(501), detail: "Test demand.", signal: "Pilot", score: 70 }
+        : index < 4
+          ? { thesis: "Run a pilot", detail: "Test demand.", signal: "Pilot", score: 70 }
+          : buildDemoRun(brief);
+
+      return {
+        content: [{ type: "text", text: JSON.stringify(output) }],
+        finishReason: { unified: "stop", raw: "stop" },
+        usage: {
+          inputTokens: { total: 10, noCache: 10, cacheRead: 0, cacheWrite: 0 },
+          outputTokens: { total: 10, text: 10, reasoning: 0 },
+        },
+        warnings: [],
+      };
+    },
+  });
+
+  const result = await runModelCouncil(model, brief);
+
+  expect(result.agents).toHaveLength(3);
+  expect(calls).toBe(5);
+});
+
 it("does not retry rejected credentials", async () => {
   let calls = 0;
 
@@ -163,7 +195,11 @@ it("answers a follow-up using the memo and the complete discussion", async () =>
 
   const messages = [
     { role: "user" as const, content: "We only have £5,000." },
-    { role: "assistant" as const, content: "Keep the test small." },
+    {
+      role: "assistant" as const,
+      content: "Keep the test small.",
+      execution: { provider: "anthropic", model: "test-model-130" },
+    },
     { role: "user" as const, content: "What would we cut first?" },
   ];
 
@@ -173,6 +209,7 @@ it("answers a follow-up using the memo and the complete discussion", async () =>
   const prompt = JSON.stringify(model.doGenerateCalls[0].prompt);
   expect(prompt).toContain(brief);
   expect(prompt).toContain(memo.verdict);
+  expect(prompt).not.toContain("test-model-130");
 
   for (const message of messages) expect(prompt).toContain(message.content);
 });

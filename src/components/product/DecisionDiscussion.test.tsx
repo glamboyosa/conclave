@@ -67,6 +67,7 @@ it("preserves a failed message and saves the conversation only after a successfu
     <DecisionDiscussion
       record={record}
       connection={defaultConnection}
+      modelLabel="Test model 130"
       controls={null}
       onSave={save}
       onRevise={vi.fn()}
@@ -95,6 +96,10 @@ it("preserves a failed message and saves the conversation only after a successfu
       {
         role: "assistant",
         content: "A smaller budget changes the recommendation.",
+        execution: {
+          provider: defaultConnection.provider,
+          model: defaultConnection.model,
+        },
       },
     ]),
     { timeout: 3000 },
@@ -106,6 +111,69 @@ it("preserves a failed message and saves the conversation only after a successfu
     }),
   );
   expect(screen.getByLabelText("Your follow-up")).toHaveValue("");
+});
+
+it("shows the selected model when a saved discussion changes providers", async () => {
+  const user = userEvent.setup();
+
+  const changed = {
+    provider: "anthropic",
+    model: "test-model-130",
+  };
+
+  render(
+    <DecisionDiscussion
+      record={{
+        ...record,
+        result: { ...record.result, execution: { provider: "openai", model: "test-model-129" } },
+        discussion: [
+          { role: "user", content: "What if the budget changes?" },
+          { role: "assistant", content: "Recheck the pilot.", execution: changed },
+        ],
+      }}
+      connection={defaultConnection}
+      modelLabel="Test model 130"
+      controls={null}
+      onSave={vi.fn()}
+      onRevise={vi.fn()}
+      onDecision={vi.fn()}
+    />,
+  );
+
+  expect(screen.getByText("Replies switched to anthropic · test-model-130")).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Hide discussion" }));
+  await user.click(screen.getByRole("button", { name: "Discuss this decision" }));
+  expect(screen.getByText("Replies switched to anthropic · test-model-130")).toBeInTheDocument();
+});
+
+it("keeps a follow-up draft when the next reply switches to OpenAI", async () => {
+  const user = userEvent.setup();
+
+  const props = {
+    record,
+    connection: defaultConnection,
+    modelLabel: "NVIDIA Nemotron 3 Super (free)",
+    controls: null,
+    onSave: vi.fn(),
+    onRevise: vi.fn(),
+    onDecision: vi.fn(),
+  };
+
+  const { rerender } = render(<DecisionDiscussion {...props} />);
+
+  await user.click(screen.getByRole("button", { name: "Discuss this decision" }));
+  await user.type(screen.getByLabelText("Your follow-up"), "Does this change your view?");
+
+  rerender(
+    <DecisionDiscussion
+      {...props}
+      connection={{ ...defaultConnection, provider: "openai", model: "gpt-6-sol" }}
+      modelLabel="GPT-6 Sol"
+    />,
+  );
+
+  expect(screen.getByLabelText("Your follow-up")).toHaveValue("Does this change your view?");
+  expect(screen.getByRole("status")).toHaveTextContent("Next reply: OpenAI · GPT-6 Sol. The conversation carries over.");
 });
 
 it("saves offline notes without a model request and enables revision after context is added", async () => {
@@ -121,6 +189,7 @@ it("saves offline notes without a model request and enables revision after conte
       provider: "demo" as const,
       model: "offline",
     },
+    modelLabel: "Offline council",
     controls: null,
     onSave: save,
     onRevise: revise,

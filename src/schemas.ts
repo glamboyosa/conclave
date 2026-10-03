@@ -41,6 +41,7 @@ export const discussionMessageSchema = z.discriminatedUnion("role", [
   z.object({
     role: z.literal("assistant"),
     content: z.string().trim().min(1).max(12000),
+    execution: z.object({ provider: z.string(), model: z.string() }).optional(),
   }),
 ]);
 
