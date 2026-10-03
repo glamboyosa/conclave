@@ -13,6 +13,10 @@ beforeEach(() => {
     observe = vi.fn();
     disconnect = vi.fn();
   });
+  Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+    configurable: true,
+    value: vi.fn(),
+  });
 });
 
 describe("decision room", () => {

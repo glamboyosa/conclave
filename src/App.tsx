@@ -1,7 +1,7 @@
 import { Toast } from "@base-ui/react/toast";
 import { ConnectionToasts } from "./components/product/ConnectionToasts";
 import { z } from "zod";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   BookOpen,
   FileText,
@@ -254,10 +254,18 @@ export default function App() {
   const [stage, setStage] = useState("perspectives");
   const [completed, setCompleted] = useState<string[]>([]);
   const runId = useRef(0);
+  const scrollToCompletedDecision = useRef(false);
 
   const decisionRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const keyRef = useRef<HTMLInputElement>(null);
+
+  useLayoutEffect(() => {
+    if (phase !== "done" || !scrollToCompletedDecision.current) return;
+
+    scrollToCompletedDecision.current = false;
+    decisionRef.current?.scrollIntoView({ block: "start", behavior: "instant" });
+  }, [phase, result]);
 
   function persistConnection(next: ModelConnection) {
     localStorage.setItem(
@@ -416,6 +424,7 @@ export default function App() {
         execution: { provider: connection.provider, model: connection.model },
       };
 
+      scrollToCompletedDecision.current = true;
       setResult(memo);
       setPhase("done");
       const record = saveDecision(brief.trim(), memo, revision?.id);

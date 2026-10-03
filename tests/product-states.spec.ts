@@ -90,6 +90,7 @@ test("catalog loading, failure, key verification, and unavailable selection", as
 test("live stage events culminate in a safe, readable memo", async ({
   page,
 }) => {
+  await page.setViewportSize({ width: 390, height: 500 });
   const result = {
     ...buildDemoRun("Should our test team pilot a new decision process?"),
     mode: "live",
@@ -151,10 +152,17 @@ test("live stage events culminate in a safe, readable memo", async ({
       name: "Reviewing your decision…",
     }),
   ).toBeVisible();
+  await expect.poll(() => page.locator(".council-running").evaluate(
+    (element) => element.getBoundingClientRect().top,
+  )).toBeGreaterThanOrEqual(0);
   await expect(
     page.getByRole("heading", { name: "Writing recommendation…" }),
   ).toBeVisible();
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
   await expect(page.getByText("Chair’s call", { exact: true })).toBeVisible();
+  await expect.poll(() => page.locator("#decision-memo").evaluate(
+    (element) => element.getBoundingClientRect().top,
+  )).toBeGreaterThanOrEqual(0);
   await expect(page.getByTestId("agent-analyst")).toContainText(
     "Specific evidence",
   );

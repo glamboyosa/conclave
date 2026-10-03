@@ -75,6 +75,9 @@
   },
   "packageManager": "pnpm@10.15.0",
   "pnpm": {
+    "overrides": {
+      "@ai-sdk/otel": "1.0.97"
+    },
     "onlyBuiltDependencies": [
       "node"
     ]
