@@ -4,6 +4,16 @@ Conclave runs a fixed council over a user's decision brief, then lets the user d
 
 The workflow lives in [`src/council.ts`](../src/council.ts). [`server/api.ts`](../server/api.ts) validates requests, selects models, and serves the API. [`src/App.tsx`](../src/App.tsx) manages the current decision and connection; [`src/storage.ts`](../src/storage.ts) saves completed records in the browser. The wire contracts are in [`src/schemas.ts`](../src/schemas.ts) and [`src/engine.ts`](../src/engine.ts).
 
+## Why this is a workflow
+
+The three assessment roles are known before a run starts. They can examine the same brief independently and in parallel; the Chair needs their completed findings before it can synthesize a memo. Application code controls that sequence and validates each output. `ToolLoopAgent` supplies reusable role instructions and structured output, but the roles have no tools or authority to change the workflow. An open-ended agent conversation would add model calls without giving the council new evidence.
+
+This design follows established guidance on choosing a bounded workflow for a predictable task:
+
+- [AI SDK workflow patterns](https://ai-sdk.dev/docs/agents/workflows) shows parallel specialist calls followed by synthesis, and recommends starting with the simplest approach that meets the task's needs.
+- [Anthropic's guide to building effective agents](https://www.anthropic.com/engineering/building-effective-agents) describes parallelization for independent perspectives and recommends adding complexity only when it improves outcomes.
+- [Google Cloud's agent design guide](https://docs.cloud.google.com/architecture/choose-design-pattern-agentic-ai-system) describes a fixed parallel pattern and weighs task structure, latency, cost, and human involvement when choosing a design.
+
 ## Council run
 
 1. `/api/run` validates a 20–4,000 character brief and the selected connection. **Offline council** returns a deterministic format preview from `buildDemoRun`; it makes no model call.
@@ -11,7 +21,7 @@ The workflow lives in [`src/council.ts`](../src/council.ts). [`server/api.ts`](.
 3. The Chair starts after all three findings pass their output schema. It receives the brief and the three findings, then returns a title, verdict, 0–100 support score, two to four tensions, exactly three actions, and two to five assumptions. The saved result also includes the findings and `mode: "live"`.
 4. The browser saves the completed memo with the provider and model used for that run. It keeps up to 50 completed decisions in local storage.
 
-`ToolLoopAgent` supplies each role's instructions and structured output contract, while application code owns concurrency and ordering. The roles have no tools and cannot research outside the supplied context. This is a bounded workflow rather than an open-ended conversation among agents. The Chair synthesizes disagreement; it does not ask the analysts to negotiate or rerun them when they differ.
+The roles cannot research outside the supplied context. The Chair synthesizes disagreement; it does not ask the analysts to negotiate or rerun them when they differ.
 
 The API emits newline-delimited JSON (`application/x-ndjson`) for live runs: a `perspectives` stage, a completion event for each analyst, a `chair` stage, then one `result` or `error`. The progress events do **not** contain partial findings or a token stream of the final memo. The client renders the memo only after receiving the complete result, then brings its start into view. The endpoint can also return a JSON result to callers that do not request the stream.
 
