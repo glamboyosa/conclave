@@ -34,7 +34,7 @@ Paste a brief like this:
 
 Choose a model, then select **Convene council** or press **Cmd/Ctrl + Enter**. Briefs must contain 20–4,000 characters. The current input accepts text.
 
-Assessments appear as they complete, followed by the Chair's synthesis. Reopen saved decisions in **Library**, or copy/export a memo as Markdown. The council uses the brief you provide; it has no external research tools. Support scores are model self-assessments, not calibrated probabilities.
+Conclave marks each assessment complete, then shows the memo after the Chair finishes. Reopen saved decisions in **Library**, or copy/export a memo as Markdown. The council uses the brief you provide; it has no external research tools. Support scores are model self-assessments, not calibrated probabilities.
 
 Select **Discuss this decision** to challenge or clarify the memo. Before a follow-up, use the discussion's model picker to switch providers or models. Conclave sends the memo and prior discussion to the selected model and labels its reply in the timeline. A new provider may require its own API key. Model changes affect the next reply; they do not rerun the original council or revise its memo. To get a new memo, select **Revise decision**.
 
@@ -74,8 +74,8 @@ pnpm preview
 <details>
 <summary>How the council runs</summary>
 
-React and Vite serve the interface. AI SDK runs three agents concurrently, then starts the Chair after their validated outputs complete. Zod validates requests, results, and saved records; Server-Sent Events deliver progress and results.
+React and Vite serve the interface. AI SDK runs three agents concurrently, then starts the Chair after their validated outputs complete. Zod validates requests, results, and saved records. The API streams progress and results as newline-delimited JSON.
 
-Product components live in `src/components/product/`, catalog state in `src/hooks/`, and API handlers in `server/api.ts`. See [Council design](docs/agent-design.md) for the workflow and constraints.
+Product components live in `src/components/product/`, catalog state in `src/hooks/`, and API routes in `server/api.ts`. Provider setup and catalog fetches live in `server/provider-models.ts`. See [Council design](docs/agent-design.md) for the workflow and constraints.
 
 </details>
