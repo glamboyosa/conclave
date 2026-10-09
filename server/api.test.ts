@@ -5,7 +5,7 @@ import { buildDemoRun } from "../src/engine";
 import productionRun from "../api/run";
 import productionCatalog from "../api/catalog";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { buildModel } from "./api";
+import { buildModel } from "./provider-models";
 import type { ProviderId } from "../src/providers";
 
 afterEach(() => vi.unstubAllGlobals());
