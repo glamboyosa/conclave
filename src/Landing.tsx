@@ -43,7 +43,6 @@ export const Landing = ({ dark, onEnter, onGuide, onToggleTheme }: LandingProps)
 
       <main className="landing-main">
         <section className="landing-hero" aria-labelledby="landing-title">
-          <span className="landing-eyebrow">A decision room for difficult calls</span>
           <h1 id="landing-title">Get an AI recommendation you can argue with.</h1>
           <p>
             Give Conclave the decision you’re facing. An AI council weighs the

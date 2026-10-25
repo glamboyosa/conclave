@@ -1248,7 +1248,6 @@ details ul {
   padding: clamp(72px, 12vh, 132px) 0 72px;
 }
 .landing-hero { max-width: 750px; }
-.landing-eyebrow,
 .landing-feature-label {
   color: var(--muted);
   font-size: 12px;
