@@ -91,11 +91,11 @@ test("opening the discussion model picker keeps the reader in place and shows th
   expect(Math.abs(await page.evaluate(() => scrollY) - before)).toBeLessThan(4);
 
   await page.getByRole("button", { name: "All", exact: true }).click();
-  await page.getByLabel("Search models").fill("nvidia/nemotron-3-super-120b-a12b:free");
+  await page.getByLabel("Search models").fill("nvidia/nemotron-3.5-super-vl:free");
   await page.getByRole("option").first().click();
 
   await expect(page.getByRole("status").filter({ hasText: "Next reply:" })).toContainText(
-    "OpenRouter · NVIDIA Nemotron 3 Super (free)",
+    "OpenRouter · NVIDIA Nemotron 3.5 Super VL (free)",
   );
   await expect(page.getByRole("status").filter({ hasText: "Next reply:" })).toContainText(
     "The conversation carries over.",

@@ -152,7 +152,7 @@ it("keeps a follow-up draft when the next reply switches to OpenAI", async () =>
   const props = {
     record,
     connection: defaultConnection,
-    modelLabel: "NVIDIA Nemotron 3 Super (free)",
+    modelLabel: "NVIDIA Nemotron 3.5 Super VL (free)",
     controls: null,
     onSave: vi.fn(),
     onRevise: vi.fn(),

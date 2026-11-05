@@ -42,7 +42,7 @@ Select **Discuss this decision** to challenge or clarify the memo. Before a foll
 
 | Connection              | Access                                                                                     |
 | ----------------------- | ------------------------------------------------------------------------------------------ |
-| Free NVIDIA             | Shared OpenRouter access for `nvidia/*:free` routes, including Nemotron 3 Super            |
+| Free NVIDIA             | Shared OpenRouter access for `nvidia/*:free` routes, including Nemotron 3.5 Super VL     |
 | Direct providers        | Your own OpenAI, Anthropic, Google, Kimi/Moonshot, DeepSeek, xAI, Groq, or Mistral API key |
 | Other OpenRouter models | Your own OpenRouter key, including for other free models                                   |
 | Local / advanced        | Ollama, LM Studio, or an OpenAI-compatible endpoint; enter the exact model ID              |
@@ -50,7 +50,7 @@ Select **Discuss this decision** to challenge or clarify the memo. Before a foll
 
 OpenRouter is optional for direct providers. NVIDIA connections use OpenRouter and share its key slot.
 
-The picker uses Models.dev metadata and provider catalogs. **Your provider** lists OpenAI first, then Anthropic, then other providers; models within each provider are newest first. Hosted models have a 180-day release window, with an explicit exception for free Nemotron 3 Super. Local connections are exempt. Models must support structured output.
+The picker uses Models.dev metadata and provider catalogs. **Your provider** lists OpenAI first, then Anthropic, then other providers; models within each provider are newest first. Hosted models have a 180-day release window, with an explicit exception for free Nemotron 3.5 Super VL. Local connections are exempt. Models must support structured output.
 
 Local endpoints must use loopback addresses. Remote custom endpoints require HTTPS.
 

@@ -130,7 +130,7 @@ export const ModelPicker = ({
         return catalog.flatMap((model) => {
           const pinnedFreeModel =
             usesSharedNvidiaRoute(provider, model.id) &&
-            model.id === "nvidia/nemotron-3-super-120b-a12b:free";
+            model.id === "nvidia/nemotron-3.5-super-vl:free";
 
           if (
             provider !== "demo" &&
@@ -490,8 +490,8 @@ export const ModelPicker = ({
               )}
             </div>
             <p className="picker-footnote">
-              Hosted models released in the last 180 days, plus free Nemotron 3
-              Super. Shared access covers free NVIDIA models via OpenRouter.
+              Hosted models released in the last 180 days, plus free Nemotron 3.5
+              Super VL. Shared access covers free NVIDIA models via OpenRouter.
               Other hosted models require your key.
             </p>
           </Popover.Popup>

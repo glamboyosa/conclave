@@ -838,13 +838,13 @@ test("the hosted picker excludes old, unknown, and future release dates in every
   await expect(
     page.getByRole("option", { name: /Offline council/ }),
   ).toBeVisible();
-  await page.getByLabel("Search models").fill("Nemotron 3 Super");
+  await page.getByLabel("Search models").fill("Nemotron 3.5 Super VL");
   await expect(page.getByRole("option")).toHaveCount(2);
   await page
-    .getByRole("option", { name: /^Nemotron 3 Super \(free\)/ })
+    .getByRole("option", { name: /^Nemotron 3\.5 Super VL \(free\)/ })
     .click();
   await expect(page.getByLabel("Model", { exact: true })).toContainText(
-    "Nemotron 3 Super",
+    "Nemotron 3.5 Super VL",
   );
   await expect(
     page.getByRole("textbox", { name: "API key", exact: true }),

@@ -153,7 +153,7 @@ describe("decision room", () => {
       "conclave:connection",
       JSON.stringify({
         provider: "nvidia",
-        model: "nvidia/nemotron-3-super-120b-a12b:free",
+        model: "nvidia/nemotron-3.5-super-vl:free",
         baseURL: "",
       }),
     );

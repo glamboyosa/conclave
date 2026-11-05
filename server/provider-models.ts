@@ -11,6 +11,7 @@ import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import type { LanguageModel } from "ai";
 import { z } from "zod";
 import {
+  NVIDIA_REASONING_TOKENS,
   usesSharedNvidiaRoute,
   type CatalogModel,
   type ProviderId,
@@ -293,7 +294,9 @@ export function buildModel(
         apiKey,
         compatibility: "strict",
         extraBody: {
-          reasoning: { effort: "low", exclude: true },
+          reasoning: connection.model.startsWith("nvidia/")
+            ? { max_tokens: NVIDIA_REASONING_TOKENS, exclude: true }
+            : { effort: "low", exclude: true },
         },
         headers: {
           "HTTP-Referer": env.CONCLAVE_SITE_URL || "http://localhost:4173",

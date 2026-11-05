@@ -61,6 +61,36 @@ describe("direct provider routing", () => {
     },
   );
 
+  it.each([
+    ["nvidia/nemotron-3.5-super-vl:free", { max_tokens: 1024, exclude: true }],
+    ["anthropic/claude-fable-5.1", { effort: "low", exclude: true }],
+  ] as const)(
+    "caps reasoning for %s on OpenRouter",
+    async (model, reasoning) => {
+      const fetchMock = vi
+        .fn()
+        .mockRejectedValue(new Error("Test request stopped"));
+
+      vi.stubGlobal("fetch", fetchMock);
+
+      await expect(
+        buildModel(
+          { provider: "openrouter", model, baseURL: "", apiKey: "fake-key" },
+          {},
+        ).doGenerate({
+          prompt: [
+            {
+              role: "user",
+              content: [{ type: "text", text: "Test decision" }],
+            },
+          ],
+        }),
+      ).rejects.toThrow("Test request stopped");
+      const [, options] = fetchMock.mock.calls[0];
+      expect(JSON.parse(options.body).reasoning).toEqual(reasoning);
+    },
+  );
+
   it.each(["openai", "anthropic"] satisfies ProviderId[])(
     "does not substitute a server key for missing %s BYOK",
     (provider) => {

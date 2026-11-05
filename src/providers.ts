@@ -64,13 +64,13 @@ export const providerMeta: Record<ProviderId, ProviderMeta> = {
     name: "OpenRouter",
     key: "optional",
     keyUrl: "https://openrouter.ai/keys",
-    defaultModel: "nvidia/nemotron-3-super-120b-a12b:free",
+    defaultModel: "nvidia/nemotron-3.5-super-vl:free",
     popular: [
       {
-        id: "nvidia/nemotron-3-super-120b-a12b:free",
-        name: "NVIDIA Nemotron 3 Super (free)",
+        id: "nvidia/nemotron-3.5-super-vl:free",
+        name: "NVIDIA Nemotron 3.5 Super VL (free)",
         free: true,
-        releaseDate: "2026-03-11",
+        releaseDate: "2026-10-15",
       },
       {
         id: "anthropic/claude-fable-5.1",
@@ -278,13 +278,13 @@ export const providerMeta: Record<ProviderId, ProviderMeta> = {
     key: "optional",
     keyUrl: "https://openrouter.ai/keys",
     keyName: "OpenRouter",
-    defaultModel: "nvidia/nemotron-3-super-120b-a12b:free",
+    defaultModel: "nvidia/nemotron-3.5-super-vl:free",
     popular: [
       {
-        id: "nvidia/nemotron-3-super-120b-a12b:free",
-        name: "Nemotron 3 Super (free)",
+        id: "nvidia/nemotron-3.5-super-vl:free",
+        name: "Nemotron 3.5 Super VL (free)",
         free: true,
-        releaseDate: "2026-03-11",
+        releaseDate: "2026-10-15",
       },
       {
         id: "nvidia/nemotron-3.5-lightning",
@@ -367,6 +367,12 @@ export const usesSharedNvidiaRoute = (
   (provider === "openrouter" || provider === "nvidia") &&
   model.startsWith("nvidia/") &&
   model.endsWith(":free");
+
+// Nemotron's reasoning length varies a lot even at low effort; on some calls it
+// spent the whole output budget reasoning and returned no answer. OpenRouter
+// caps NVIDIA reasoning at this budget, and the council adds it to each output
+// limit so the answer still fits.
+export const NVIDIA_REASONING_TOKENS = 1024;
 
 /** In-memory key slot — NVIDIA shares OpenRouter's key, since NVIDIA runs through OpenRouter. */
 export function keySlot(provider: ProviderId): ProviderId {
